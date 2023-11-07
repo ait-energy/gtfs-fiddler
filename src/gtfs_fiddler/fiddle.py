@@ -13,6 +13,16 @@ class Fiddle:
     def __init__(self, p: Path):
         self.feed = gk.read_feed(p, dist_units="km")
         self.feed.validate()
+        self.trips_sorted = Fiddle._prepare_trips(self.feed)
+
+    @staticmethod
+    def _prepare_trips(feed: Feed) -> DataFrame:
+        trip_stats = feed.compute_trip_stats()
+        trip2service = feed.trips[["trip_id", "service_id"]]
+        joined = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
+        return joined.sort_values(
+            by=["route_id", "direction_id", "service_id", "start_time"]
+        )
 
     def get_feed(self) -> Feed:
         return self.feed

@@ -45,3 +45,20 @@ def test_densify_by_multiplier(multiplier):
     assert tripcounts.loc[("131N-423", "CNS2014-CNS_MUL-Weekday-00")] == 1
     assert tripcounts.loc[("110-423", "CNS2014-CNS_MUL-Weekday-00")] == 59 * multiplier
     assert tripcounts.loc[("110-423", "CNS2014-CNS_MUL-Saturday-00")] == 34 * multiplier
+
+
+def test_densify_but_properly():
+    assert False
+    # TODO use the SORTED trips in Fiddle to insert new trips.
+    # (probably also for route+service pairs
+    # with only a single trip (let's just duplicate it after 1 hour or so))
+
+    # .. for each duplication take the trip before and after.
+    # calc the difference between the trips' start time and divide it by the densify factor
+    # for each duplication:
+    #   add a suffix to the prev trip
+    #   clone the stop_times for the prev trip but add the diff to the times
+
+    # duplicate after the last trip? yeah maybe.. just use the previous time between trips
+    # -> this would also lead to a simple duplication of trips.. maybe more what one would expect
+    # than the exception for single route+service trips?
