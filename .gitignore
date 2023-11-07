@@ -1,1 +1,5 @@
+.vscode
+__pycache__
 poetry.lock
+
+data/cairns_gtfs
