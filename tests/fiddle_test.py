@@ -2,22 +2,22 @@ from pathlib import Path
 
 import pytest
 
-from gtfs_fiddler.fiddle import Fiddle
+from gtfs_fiddler.fiddle import GtfsFiddler
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
-STATIC_CAIRNS = Fiddle(CAIRNS_GTFS)
+STATIC_CAIRNS = GtfsFiddler(CAIRNS_GTFS)
 
 
 def test_route_count():
-    assert len(STATIC_CAIRNS.get_routes()) == 22
+    assert len(STATIC_CAIRNS.routes) == 22
 
 
 def test_trip_count():
-    assert len(STATIC_CAIRNS.get_trips()) == 1339
+    assert len(STATIC_CAIRNS.trips) == 1339
 
 
 def test_stop_times_count():
-    assert len(STATIC_CAIRNS.get_stop_times()) == 37790
+    assert len(STATIC_CAIRNS.stop_times) == 37790
 
 
 def test_trips_to_be_densified():
@@ -31,9 +31,15 @@ def test_trips_to_be_densified():
     assert len(groups) == 55
 
 
+def test_sorted_trips():
+    st = STATIC_CAIRNS.sorted_trips
+    assert len(st) == 1339
+    assert False, "TODO more asserts.. "
+
+
 @pytest.mark.parametrize("multiplier", [2, 3])
 def test_densify_by_multiplier(multiplier):
-    cairns = Fiddle(CAIRNS_GTFS)
+    cairns = GtfsFiddler(CAIRNS_GTFS)
     tripcounts = cairns.tripcount_per_route_and_service()
     assert tripcounts.loc[("131N-423", "CNS2014-CNS_MUL-Weekday-00")] == 1
     assert tripcounts.loc[("110-423", "CNS2014-CNS_MUL-Weekday-00")] == 59

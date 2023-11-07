@@ -7,13 +7,17 @@ from gtfs_kit.feed import Feed
 from pandas import DataFrame, Series
 
 
-class Fiddle:
-    """Wrapper of Feed providing getter methods with proper type annotations for better autocompletion"""
+class GtfsFiddler:
+    """
+    Built on top of gtfs_kit.Feed to:
+    - Provide typed access to the feed's members (autocompletion!)
+    - Densify a feed by copying trips (and adjusting the copies' times)
+    """
 
     def __init__(self, p: Path):
-        self.feed = gk.read_feed(p, dist_units="km")
-        self.feed.validate()
-        self.trips_sorted = Fiddle._prepare_trips(self.feed)
+        self._feed = gk.read_feed(p, dist_units="km")
+        self._feed.validate()
+        self._sorted_trips = GtfsFiddler._prepare_trips(self._feed)
 
     @staticmethod
     def _prepare_trips(feed: Feed) -> DataFrame:
@@ -24,20 +28,28 @@ class Fiddle:
             by=["route_id", "direction_id", "service_id", "start_time"]
         )
 
-    def get_feed(self) -> Feed:
-        return self.feed
+    @property
+    def feed(self) -> Feed:
+        return self._feed
 
-    def get_routes(self) -> DataFrame:
-        return self.feed.routes
+    @property
+    def routes(self) -> DataFrame:
+        return self._feed.routes
 
-    def get_trips(self) -> DataFrame:
-        return self.feed.trips
+    @property
+    def trips(self) -> DataFrame:
+        return self._feed.trips
 
-    def get_stop_times(self) -> DataFrame:
-        return self.feed.stop_times
+    @property
+    def sorted_trips(self) -> DataFrame:
+        return self._sorted_trips
+
+    @property
+    def stop_times(self) -> DataFrame:
+        return self._feed.stop_times
 
     def tripcount_per_route_and_service(self) -> Series:
-        return self.get_trips().groupby(["route_id", "service_id"]).size()
+        return self.trips.groupby(["route_id", "service_id"]).size()
 
     def densify(self, multiplier):
         """
@@ -45,15 +57,15 @@ class Fiddle:
         with departure times evenly distributed
         """
         groups = self._trips_to_be_densified()
-        df_to_merge = [self.get_trips()]
+        df_to_merge = [self.trips]
         for name, labels in groups.items():
             for i in range(2, multiplier + 1):
-                trips_for_group = self.get_trips().loc[labels].copy()
+                trips_for_group = self.trips.loc[labels].copy()
                 trips_for_group["trip_id"] = trips_for_group["trip_id"] + f"#{i}"
                 df_to_merge.append(trips_for_group)
 
-        self.feed.trips = pd.concat(df_to_merge)
+        self._feed.trips = pd.concat(df_to_merge)
 
     def _trips_to_be_densified(self) -> dict[Hashable, list[Hashable]]:
-        groups = self.get_trips().groupby(["route_id", "service_id"]).groups
+        groups = self.trips.groupby(["route_id", "service_id"]).groups
         return {k: v for k, v in groups.items() if len(v) > 1}
