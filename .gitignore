@@ -3,3 +3,7 @@ __pycache__
 poetry.lock
 
 data/cairns_gtfs
+data/20221105-0340_gtfs_vor_2022_busiestDayOnly/
+data/cairns_busiest_day_only.zip
+data/20221105-0340_gtfs_vor_2022.zip
+data/20221105-0340_gtfs_vor_2022_busiestDayOnly.zip

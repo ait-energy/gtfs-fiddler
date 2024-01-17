@@ -15,12 +15,28 @@ class GtfsTime:
             try:
                 self.seconds_of_day = int(tokens[0]) * 60 * 60
                 self.seconds_of_day += int(tokens[1]) * 60
-                self.seconds_of_day += int(tokens[2])
+                if len(tokens) > 2:
+                    self.seconds_of_day += int(tokens[2])
             except:
                 raise ValueError(f"expected HH:MM:SS format but got {time}")
 
+    def __repr__(self):
+        hours = int(self.seconds_of_day / (60 * 60))
+        minutes = int(self.seconds_of_day / 60) % 60
+        seconds = self.seconds_of_day % 60
+        return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+    def __hash__(self):
+        return self.seconds_of_day
+
     def __eq__(self, other: Self) -> bool:
         return self.seconds_of_day == other.seconds_of_day
+
+    def __lt__(self, other: Self) -> bool:
+        return self.seconds_of_day < other.seconds_of_day
+
+    def __gt__(self, other: Self) -> bool:
+        return self.seconds_of_day > other.seconds_of_day
 
     def __sub__(self, other: Self) -> Self:
         return GtfsTime(self.seconds_of_day - other.seconds_of_day)

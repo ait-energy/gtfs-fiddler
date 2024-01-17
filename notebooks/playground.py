@@ -1,31 +1,29 @@
 # %%
-import gtfs_kit as gk
-from gtfs_kit.validators import check_stop_times
+import importlib
+from datetime import date
 from pathlib import Path
+
+import gtfs_kit as gk
 import pandas as pd
+from gtfs_kit.validators import check_stop_times
+
+from gtfs_fiddler.fiddle import GtfsFiddler
 
 DATA_PATH = Path("../data")
 print(f"working with data in {DATA_PATH.resolve().absolute()}")
-CAIRNS = DATA_PATH / "cairns_gtfs.zip"
-CAIRNS_MODIFIED = DATA_PATH / "cairns_gtfs_modified.zip"
 
-# %% basic usage of gtfs_kit
-feed = gk.read_feed(CAIRNS, dist_units="km")
-feed.describe()
+# %% load cairns
+GTFS_PATH = DATA_PATH / "cairns_gtfs.zip"
+f = GtfsFiddler(GTFS_PATH, "km", date(2014, 6, 1))
 
+# %% load VOR
+GTFS_PATH = DATA_PATH / "20221105-0340_gtfs_vor_2022_busiestDayOnly.zip"
+f = GtfsFiddler(GTFS_PATH, "m")
 
-# %% reduce feed to busiest day
-from gtfs_kit.miscellany import restrict_to_dates
+# %%
+f.feed.describe()
 
-CAIRNS_BUSIEST_DAY = DATA_PATH / "cairns_busiest_day_only.zip"
-busiest_date = feed.compute_busiest_date(feed.get_dates())
-print(f"busiest date: {busiest_date}")
-restricted_feed = restrict_to_dates(feed, [busiest_date])
-restricted_feed.write(CAIRNS_BUSIEST_DAY)
-
-# %% init fiddler
-from gtfs_fiddler.fiddle import GtfsFiddler
-
-fiddle = GtfsFiddler(CAIRNS)
-
+# %%
+trips = f.sorted_trips
+df = trips[trips.route_id == "23-92A-j22-2"]
 # %%

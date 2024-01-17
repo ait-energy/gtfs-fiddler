@@ -51,3 +51,17 @@ def test_addition():
 
 def test_beyond_24h():
     assert GtfsTime("23:59:59") + GtfsTime("10:00:00") == GtfsTime("33:59:59")
+
+
+def test_repr():
+    assert repr(GtfsTime("5:01")) == "05:01:00"
+
+
+def test_less_than():
+    assert GtfsTime("00:00:00") < GtfsTime("01:00:00")
+    assert GtfsTime("01:00:00") < GtfsTime("01:00:01")
+
+
+def test_greater_than():
+    assert GtfsTime("24:00:00") > GtfsTime("01:00:00")
+    assert GtfsTime("02:00:00") > GtfsTime("01:00:01")
