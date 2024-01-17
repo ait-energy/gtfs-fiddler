@@ -8,6 +8,7 @@ import pandas as pd
 from gtfs_kit.validators import check_stop_times
 
 from gtfs_fiddler.fiddle import GtfsFiddler
+from gtfs_fiddler.gtfs_time import GtfsTime
 
 DATA_PATH = Path("../data")
 print(f"working with data in {DATA_PATH.resolve().absolute()}")
@@ -24,6 +25,6 @@ f = GtfsFiddler(GTFS_PATH, "m")
 f.feed.describe()
 
 # %%
-trips = f.sorted_trips
+trips = f.trips_with_times
 df = trips[trips.route_id == "23-92A-j22-2"]
 # %%

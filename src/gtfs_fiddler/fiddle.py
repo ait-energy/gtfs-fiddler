@@ -28,7 +28,7 @@ class GtfsFiddler:
             self._feed = self._original_feed
         # self._sorted_trips = GtfsFiddler._update_sorted_trips(self._feed)
 
-    def sorted_trips(self) -> DataFrame:
+    def trips_with_times(self) -> DataFrame:
         trip_stats = self._feed.compute_trip_stats()
         trip2service = self._feed.trips[["trip_id", "service_id", "trip_headsign"]]
         df = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
@@ -63,16 +63,14 @@ class GtfsFiddler:
     def tripcount_per_route_and_service(self) -> Series:
         return self.trips.groupby(["route_id", "service_id"]).size()
 
-    def ensure_earliest_departure(self, time: GtfsTime):
+    def ensure_earliest_departure(self, target_time: GtfsTime):
         """
         In case the earliest trip departs later than the given time,
         this trip is copied and set to start at that time.
         """
-        # TODO avoid using sorted_trips?
-        t = self.sorted_trips()
+        t = self.trips_with_times()
         first_trip = t.groupby(["route_id", "direction_id"]).first()
-        trips_to_adjust = first_trip[first_trip.start_time > time].trip_id
-        print(f"need to copy {len(trips_to_adjust)} trips")
+        trips_to_adjust = first_trip[first_trip.start_time > target_time].trip_id
 
         dup_trips = self.trips.set_index("trip_id").loc[trips_to_adjust]
         dup_trips = dup_trips.copy().reset_index()
@@ -82,6 +80,26 @@ class GtfsFiddler:
         # for route_id, direction_id in routes_to_adjust.index:
         # copy first trip to earliest departure
         # copy and adjust stop_times
+
+        st = self.stop_times.set_index("trip_id")
+        dup_times = st.loc[trips_to_adjust].copy().reset_index()
+        dup_times.trip_id = dup_times.trip_id + "#early"
+        dup_times.arrival_time = dup_times.arrival_time.apply(GtfsTime)
+        dup_times.departure_time = dup_times.departure_time.apply(GtfsTime)
+        dup_times = dup_times.sort_values(["trip_id", "stop_sequence"])
+        dup_times = dup_times.groupby("trip_id").apply(
+            lambda df: GtfsFiddler._adjust_stop_times(df, target_time)
+        )
+        dup_times.arrival_time = dup_times.arrival_time.apply(str)
+        dup_times.departure_time = dup_times.departure_time.apply(str)
+        self._feed.stop_times = pd.concat([self._feed.stop_times, dup_times])
+
+    @staticmethod
+    def _adjust_stop_times(stop_times: DataFrame, desired_start: GtfsTime):
+        adjustment = stop_times.iloc[0].departure_time - desired_start
+        stop_times.arrival_time = stop_times.arrival_time - adjustment
+        stop_times.departure_time = stop_times.departure_time - adjustment
+        return stop_times
 
     def ensure_latest_departure(self, time: GtfsTime):
         """

@@ -23,12 +23,12 @@ def test_loading_for_one_day():
     assert len(cairns_single_sunday.trips) == 266
 
 
-def test_sorted_trips_basic():
+def test_trips_with_times_basic():
     cairns_all = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
-    sorted_trips = cairns_all.sorted_trips()
+    trips_with_times = cairns_all.trips_with_times()
 
-    assert len(sorted_trips) == 1339
-    speed_median = sorted_trips.speed.median()
+    assert len(trips_with_times) == 1339
+    speed_median = trips_with_times.speed.median()
     # speed in kph
     assert 0 < speed_median and speed_median < 50
 
@@ -37,16 +37,29 @@ def test_ensure_earliest_departure():
     fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
     route_id = "110-423"
     direction_id = 0
+
+    # state before adding new trips
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
     assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("7:16")
 
     fiddler.ensure_earliest_departure(GtfsTime("5:00"))
+    # state after adding new trips
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
     assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("5:00")
 
+    fiddler.ensure_earliest_departure(GtfsTime("5:00"))
+    # trips already added, should not change anything
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
+    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("5:00")
+
+    fiddler.ensure_earliest_departure(GtfsTime("4:00"))
+    # even earlier time should lead to one more trip
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 18
+    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("4:00")
+
 
 def _earliest_dep(fiddler: GtfsFiddler, route_id, direction_id):
-    df = fiddler.sorted_trips()
+    df = fiddler.trips_with_times()
     df[(df.route_id == route_id) & (df.direction_id == direction_id)]
     return df.iloc[0].start_time
 
