@@ -68,22 +68,50 @@ class GtfsFiddler:
         In case the earliest trip departs later than the given time,
         this trip is copied and set to start at that time.
         """
-        t = self.trips_with_times()
-        first_trip = t.groupby(["route_id", "direction_id"]).first()
-        trips_to_adjust = first_trip[first_trip.start_time > target_time].trip_id
+        self._ensure_earliest_or_latest_departure(target_time, True)
 
+    def ensure_latest_departure(self, target_time: GtfsTime):
+        """
+        In case the latest trip departs earlier than the given time,
+        this trip is copied and set to start at that time.
+        """
+        self._ensure_earliest_or_latest_departure(target_time, False)
+
+    def ensure_max_trip_interval(self, minutes: int):
+        """
+        For each interval (between two trips) larger than the given maximum
+        new trip(s) are inserted by duplicating the first trip.
+
+        Note, that this only works reliably if the feed was reduced to a single day.
+        Otherwise the trips sorted by start time will be intermixed for different days.
+        """
+        pass
+
+    def _ensure_earliest_or_latest_departure(
+        self, target_time: GtfsTime, earliest: bool
+    ):
+        suffix = "#early" if earliest else "#late"
+        # get trips enriched with arrival/departure times
+        t = self.trips_with_times()
+
+        # find the first/last trip of routes that need adjustment
+        if earliest:
+            first_trip = t.groupby(["route_id", "direction_id"]).first()
+            trips_to_adjust = first_trip[first_trip.start_time > target_time].trip_id
+        else:
+            last_trip = t.groupby(["route_id", "direction_id"]).last()
+            trips_to_adjust = last_trip[last_trip.start_time < target_time].trip_id
+
+        # copy and adjust these trips, add them to the feed's trips
         dup_trips = self.trips.set_index("trip_id").loc[trips_to_adjust]
         dup_trips = dup_trips.copy().reset_index()
-        dup_trips.trip_id = dup_trips.trip_id + "#early"
-
+        dup_trips.trip_id = dup_trips.trip_id + suffix
         self._feed.trips = pd.concat([self.trips, dup_trips])
-        # for route_id, direction_id in routes_to_adjust.index:
-        # copy first trip to earliest departure
-        # copy and adjust stop_times
 
+        # also copy and adjust relevant stop times
         st = self.stop_times.set_index("trip_id")
         dup_times = st.loc[trips_to_adjust].copy().reset_index()
-        dup_times.trip_id = dup_times.trip_id + "#early"
+        dup_times.trip_id = dup_times.trip_id + suffix
         dup_times.arrival_time = dup_times.arrival_time.apply(GtfsTime)
         dup_times.departure_time = dup_times.departure_time.apply(GtfsTime)
         dup_times = dup_times.sort_values(["trip_id", "stop_sequence"])
@@ -96,24 +124,11 @@ class GtfsFiddler:
 
     @staticmethod
     def _adjust_stop_times(stop_times: DataFrame, desired_start: GtfsTime):
+        """
+        set the departure time of the first stop to the desired start time
+        and adjust all other departure and arrival times accordingly
+        """
         adjustment = stop_times.iloc[0].departure_time - desired_start
         stop_times.arrival_time = stop_times.arrival_time - adjustment
         stop_times.departure_time = stop_times.departure_time - adjustment
         return stop_times
-
-    def ensure_latest_departure(self, time: GtfsTime):
-        """
-        In case the latest trip departs earlier than the given time,
-        this trip is copied and set to start at that time.
-        """
-        pass
-
-    def ensure_max_trip_interval(self, minutes: int):
-        """
-        For each interval (between two trips) larger than the given maximum
-        new trip(s) are inserted by duplicating the first trip.
-
-        Note, that this only works reliably if the feed was reduced to a single day.
-        Otherwise the trips sorted by start time will be intermixed for different days.
-        """
-        pass

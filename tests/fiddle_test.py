@@ -40,42 +40,58 @@ def test_ensure_earliest_departure():
 
     # state before adding new trips
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
-    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("7:16")
+    assert _earliest_departure(fiddler, route_id, direction_id) == GtfsTime("7:16")
 
     fiddler.ensure_earliest_departure(GtfsTime("5:00"))
     # state after adding new trips
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
-    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("5:00")
+    assert _earliest_departure(fiddler, route_id, direction_id) == GtfsTime("5:00")
 
     fiddler.ensure_earliest_departure(GtfsTime("5:00"))
     # trips already added, should not change anything
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
-    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("5:00")
+    assert _earliest_departure(fiddler, route_id, direction_id) == GtfsTime("5:00")
 
     fiddler.ensure_earliest_departure(GtfsTime("4:00"))
     # even earlier time should lead to one more trip
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 18
-    assert _earliest_dep(fiddler, route_id, direction_id) == GtfsTime("4:00")
+    assert _earliest_departure(fiddler, route_id, direction_id) == GtfsTime("4:00")
 
 
-def _earliest_dep(fiddler: GtfsFiddler, route_id, direction_id):
+def test_ensure_latest_departure():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    route_id = "110-423"
+    direction_id = 0
+
+    # state before adding new trips
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
+    assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("22:16")
+
+    fiddler.ensure_latest_departure(GtfsTime("23:00"))
+    # state after adding new trips
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
+    assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("23:00")
+
+    fiddler.ensure_latest_departure(GtfsTime("23:00"))
+    # trips already added, should not change anything
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 17
+    assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("23:00")
+
+    fiddler.ensure_latest_departure(GtfsTime("25:25"))
+    # even earlier time should lead to one more trip
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 18
+    assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("25:25")
+
+
+def _earliest_departure(fiddler: GtfsFiddler, route_id, direction_id):
+    return __departure(fiddler, route_id, direction_id, 0)
+
+
+def _latest_departure(fiddler: GtfsFiddler, route_id, direction_id):
+    return __departure(fiddler, route_id, direction_id, -1)
+
+
+def __departure(fiddler: GtfsFiddler, route_id, direction_id, index):
     df = fiddler.trips_with_times()
-    df[(df.route_id == route_id) & (df.direction_id == direction_id)]
-    return df.iloc[0].start_time
-
-
-def xxx_test_densify_but_properly():
-    assert False
-    # TODO use the SORTED trips in Fiddle to insert new trips.
-    # (probably also for route+service pairs
-    # with only a single trip (let's just duplicate it after 1 hour or so))
-
-    # .. for each duplication take the trip before and after.
-    # calc the difference between the trips' start time and divide it by the densify factor
-    # for each duplication:
-    #   add a suffix to the prev trip
-    #   clone the stop_times for the prev trip but add the diff to the times
-
-    # duplicate after the last trip? yeah maybe.. just use the previous time between trips
-    # -> this would also lead to a simple duplication of trips.. maybe more what one would expect
-    # than the exception for single route+service trips?
+    df = df[(df.route_id == route_id) & (df.direction_id == direction_id)]
+    return df.iloc[index].start_time
