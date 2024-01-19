@@ -1,3 +1,4 @@
+import math
 from datetime import date
 from pathlib import Path
 from typing import Hashable
@@ -13,6 +14,15 @@ from gtfs_fiddler.gtfs_time import GtfsTime
 
 def trips_for_route(trips: DataFrame, route_id, direction_id):
     return trips[(trips.route_id == route_id) & (trips.direction_id == direction_id)]
+
+
+def make_unique(s: Series):
+    """
+    Make all entries in a series of strings unique by adding number suffixes.
+    """
+    suffixes = s.to_frame(name="x").groupby(by="x").cumcount().add(1).astype(str)
+    suffixes.loc[suffixes == "1"] = ""
+    return s + suffixes
 
 
 class GtfsFiddler:
@@ -102,8 +112,18 @@ class GtfsFiddler:
         suffix = "#densify"
         # get trips enriched with arrival/departure times
         t = self.trips_enriched()
-        t.groupby(["route_id", "direction_id"]).first()
-        pass
+        t = t[t.time_to_next_trip > GtfsTime(minutes * 60)]
+
+        # copy and adjust these trips, add them to the feed's trips
+        t["repeats"] = t.time_to_next_trip.apply(
+            lambda x: math.ceil(x.seconds_of_day / (minutes * 60)) - 1
+        )
+        trips_to_adjust = t.loc[t.index.repeat(t.repeats)].trip_id
+        dup_trips = self.trips.set_index("trip_id").loc[trips_to_adjust]
+        dup_trips = dup_trips.copy().reset_index()
+        dup_trips.trip_id = dup_trips.trip_id + suffix
+        dup_trips.trip_id = make_unique(dup_trips.trip_id)
+        self._feed.trips = pd.concat([self.trips, dup_trips]).reset_index(drop=True)
 
     def _ensure_earliest_or_latest_departure(
         self, target_time: GtfsTime, earliest: bool
@@ -124,7 +144,7 @@ class GtfsFiddler:
         dup_trips = self.trips.set_index("trip_id").loc[trips_to_adjust]
         dup_trips = dup_trips.copy().reset_index()
         dup_trips.trip_id = dup_trips.trip_id + suffix
-        self._feed.trips = pd.concat([self.trips, dup_trips])
+        self._feed.trips = pd.concat([self.trips, dup_trips]).reset_index(drop=True)
 
         # also copy and adjust relevant stop times
         st = self.stop_times.set_index("trip_id")
@@ -138,7 +158,9 @@ class GtfsFiddler:
         )
         dup_times.arrival_time = dup_times.arrival_time.apply(str)
         dup_times.departure_time = dup_times.departure_time.apply(str)
-        self._feed.stop_times = pd.concat([self._feed.stop_times, dup_times])
+        self._feed.stop_times = pd.concat(
+            [self._feed.stop_times, dup_times]
+        ).reset_index(drop=True)
 
     @staticmethod
     def _adjust_stop_times(stop_times: DataFrame, desired_start: GtfsTime):

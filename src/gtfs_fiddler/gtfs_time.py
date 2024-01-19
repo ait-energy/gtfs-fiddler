@@ -3,7 +3,16 @@ from typing import Self
 
 
 class GtfsTime:
+    """
+    Encapsulates HH:MM:SS time strings as used in GTFS to seconds
+    to enable comparisons and simple arithmetics.
+    Allows for hour values larger than 24.
+    """
+
     def __init__(self, time: str | int | float):
+        """
+        param time: either a HH:MM[:SS] string or seconds of day
+        """
         self.seconds_of_day = -1
         if isinstance(time, int):
             self.seconds_of_day = time

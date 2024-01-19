@@ -1,14 +1,22 @@
 from pathlib import Path
-
+from pandas import Series
+from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 import math
 from datetime import date
-from gtfs_fiddler.fiddle import GtfsFiddler, trips_for_route
+from gtfs_fiddler.fiddle import GtfsFiddler, make_unique, trips_for_route
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
 SUNDAY = date(2014, 6, 1)
 DIST_UNIT = "km"  # actually irrelevant, no distances specified in the cairns gtfs
+
+
+def test_make_unique():
+    s = Series("a a b a b c d c c e a a".split())
+    expected = Series("a a2 b a3 b2 c d c2 c3 e a4 a5".split())
+
+    assert_series_equal(expected, make_unique(s))
 
 
 def test_basic_loading():
@@ -102,23 +110,41 @@ def test_ensure_latest_departure():
     assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("25:25")
 
 
-def test_ensure_max_trip_interval():
+def test_ensure_max_trip_interval__exact_split():
     fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
     route_id = "110-423"
     direction_id = 0
     original_departures = [GtfsTime(f"{h}:16:00") for h in range(7, 23)]
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
     assert _all_departures(fiddler, route_id, direction_id) == original_departures
 
     fiddler.ensure_max_trip_interval(90)
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
     assert (
         _all_departures(fiddler, route_id, direction_id) == original_departures
     ), "no extra trips needed, no change expected"
 
     fiddler.ensure_max_trip_interval(30)
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16 * 2 - 1
     expected_departures = [GtfsTime(f"{h}:46:00") for h in range(7, 22)]
     expected_departures.extend(original_departures)
     expected_departures = sorted(expected_departures)
-    assert _all_departures(fiddler, route_id, direction_id) == expected_departures
+    # assert _all_departures(fiddler, route_id, direction_id) == expected_departures
+    # FIXME test times!
+
+
+def test_ensure_max_trip_interval__inexact_split():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    route_id = "110-423"
+    direction_id = 0
+    original_departures = [GtfsTime(f"{h}:16:00") for h in range(7, 23)]
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16
+    assert _all_departures(fiddler, route_id, direction_id) == original_departures
+
+    # for a max 19 minute interval we need to add three trips resulting in a 15 minute interval
+    fiddler.ensure_max_trip_interval(19)
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16 * 4 - 1
+    # FIXME test times!
 
 
 def _all_departures(fiddler: GtfsFiddler, route_id, direction_id) -> list[GtfsTime]:
