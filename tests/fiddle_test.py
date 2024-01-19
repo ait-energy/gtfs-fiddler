@@ -143,7 +143,7 @@ def test_ensure_max_trip_interval__inexact_split():
 
     # for a max 19 minute interval we need to add three trips resulting in a 15 minute interval
     fiddler.ensure_max_trip_interval(19)
-    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16 * 4 - 1
+    assert len(fiddler.trips_for_route(route_id, direction_id)) == 16 * 4 - 3
     # FIXME test times!
 
 

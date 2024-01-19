@@ -1,5 +1,6 @@
 # %%
 import importlib
+import math
 from datetime import date
 from pathlib import Path
 
@@ -7,8 +8,7 @@ import gtfs_kit as gk
 import pandas as pd
 from gtfs_kit.validators import check_stop_times
 
-from gtfs_fiddler.fiddle import GtfsFiddler
-from gtfs_fiddler.fiddle import trips_for_route
+from gtfs_fiddler.fiddle import GtfsFiddler, trips_for_route, make_unique, cumcount
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 DATA_PATH = Path("../data")
@@ -45,3 +45,16 @@ t.groupby(["route_id", "direction_id"]).apply(lambda df: add_time_to_next_trip(d
 
 
 snip = t.loc[t.groupby(["route_id", "direction_id"]).groups[("110-423", 0)]]
+
+# %%
+route_id = "110-423"
+direction_id = 0
+f.ensure_max_trip_interval(19)
+df = f.trips_for_route(route_id, direction_id)
+# %%
+
+
+t = f.trips_enriched()
+minutes = 19
+t = t[t.time_to_next_trip > GtfsTime(minutes * 60)]
+# %%

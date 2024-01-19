@@ -20,9 +20,13 @@ def make_unique(s: Series):
     """
     Make all entries in a series of strings unique by adding number suffixes.
     """
-    suffixes = s.to_frame(name="x").groupby(by="x").cumcount().add(1).astype(str)
+    suffixes = cumcount(s).astype(str)
     suffixes.loc[suffixes == "1"] = ""
     return s + suffixes
+
+
+def cumcount(s: Series):
+    return s.to_frame(name="x").groupby(by="x").cumcount().add(1)
 
 
 class GtfsFiddler:
@@ -48,7 +52,10 @@ class GtfsFiddler:
         and distances
         """
         trip_stats = self._feed.compute_trip_stats()
-        trip2service = self._feed.trips[["trip_id", "service_id", "trip_headsign"]]
+        # add missing columns again
+        trip2service = self._feed.trips[
+            ["trip_id", "service_id", "trip_headsign", "block_id"]
+        ]
         df = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
         df.start_time = df.start_time.apply(GtfsTime)
         df.end_time = df.end_time.apply(GtfsTime)
@@ -118,12 +125,19 @@ class GtfsFiddler:
         t["repeats"] = t.time_to_next_trip.apply(
             lambda x: math.ceil(x.seconds_of_day / (minutes * 60)) - 1
         )
-        trips_to_adjust = t.loc[t.index.repeat(t.repeats)].trip_id
-        dup_trips = self.trips.set_index("trip_id").loc[trips_to_adjust]
-        dup_trips = dup_trips.copy().reset_index()
-        dup_trips.trip_id = dup_trips.trip_id + suffix
-        dup_trips.trip_id = make_unique(dup_trips.trip_id)
-        self._feed.trips = pd.concat([self.trips, dup_trips]).reset_index(drop=True)
+        t["offset_seconds"] = t.apply(
+            lambda x: int(x.time_to_next_trip.seconds_of_day / (x.repeats + 1)), axis=1
+        )
+        t = t.loc[t.index.repeat(t.repeats)]
+        t = t.rename(columns={"trip_id": "trip_id_original"})
+        t["trip_id"] = t.trip_id_original + suffix
+        ccount = cumcount(t.trip_id)
+        t["trip_id"] = t["trip_id"] + ccount.astype(str)
+        t["offset_seconds"] = t["offset_seconds"] * ccount
+
+        self._feed.trips = pd.concat([self.trips, t[self.trips.columns]]).reset_index(
+            drop=True
+        )
 
     def _ensure_earliest_or_latest_departure(
         self, target_time: GtfsTime, earliest: bool
