@@ -147,10 +147,11 @@ class GtfsFiddler:
 
         def teh_lambda(s):
             df = st.loc[s.trip_id_original]
-            df.trip_id = s.trip_id
-            return GtfsFiddler._adjust_stop_times(
+            df = GtfsFiddler._adjust_stop_times(
                 df, adjustment_seconds=s.offset_seconds
             ).reset_index()
+            df.trip_id = s.trip_id
+            return df
 
         collected_stop_times = t[
             ["trip_id", "trip_id_original", "offset_seconds"]
@@ -161,7 +162,7 @@ class GtfsFiddler:
         new_st = pd.concat(collected_stop_times).reset_index(drop=True)
         new_st.arrival_time = new_st.arrival_time.apply(str)
         new_st.departure_time = new_st.departure_time.apply(str)
-        self._feed.stop_times = new_st
+        self._feed.stop_times = new_st.sort_values(["trip_id", "stop_sequence"])
 
     def _ensure_earliest_or_latest_departure(
         self, target_time: GtfsTime, earliest: bool

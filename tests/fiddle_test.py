@@ -129,8 +129,7 @@ def test_ensure_max_trip_interval__exact_split():
     expected_departures = [GtfsTime(f"{h}:46:00") for h in range(7, 22)]
     expected_departures.extend(original_departures)
     expected_departures = sorted(expected_departures)
-    # assert _all_departures(fiddler, route_id, direction_id) == expected_departures
-    # FIXME test times!
+    assert _all_departures(fiddler, route_id, direction_id) == expected_departures
 
 
 def test_ensure_max_trip_interval__inexact_split():
@@ -144,7 +143,17 @@ def test_ensure_max_trip_interval__inexact_split():
     # for a max 19 minute interval we need to add three trips resulting in a 15 minute interval
     fiddler.ensure_max_trip_interval(19)
     assert len(fiddler.trips_for_route(route_id, direction_id)) == 16 * 4 - 3
-    # FIXME test times!
+    expected_departures = list(original_departures)
+    expected_departures.extend([GtfsTime(f"{h}:31:00") for h in range(7, 22)])
+    expected_departures.extend([GtfsTime(f"{h}:46:00") for h in range(7, 22)])
+    expected_departures.extend([GtfsTime(f"{h}:01:00") for h in range(8, 23)])
+    expected_departures = sorted(expected_departures)
+    assert _all_departures(fiddler, route_id, direction_id) == expected_departures
+
+
+def test_ensure_max_trip_interval__withmorecomplextrip():
+    # use a trip with slightly irregular intervals: "123-423", 0
+    assert False, "TODO"
 
 
 def _all_departures(fiddler: GtfsFiddler, route_id, direction_id) -> list[GtfsTime]:

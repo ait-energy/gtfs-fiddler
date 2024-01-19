@@ -58,4 +58,10 @@ t = f.trips_enriched()
 minutes = 19
 t = t[t.time_to_next_trip > GtfsTime(minutes * 60)]
 # %%
-f.ensure_max_trip_interval(19)
+GTFS_PATH = DATA_PATH / "cairns_gtfs.zip"
+f = GtfsFiddler(GTFS_PATH, "km", date(2014, 6, 1))
+print(f"trips: {len(f.trips)}, stop times: {len(f.stop_times)}")
+f.ensure_max_trip_interval(30)
+print(f"trips: {len(f.trips)}, stop times: {len(f.stop_times)}")
+
+# %%
