@@ -22,8 +22,7 @@ def main(args):
     out_file = Path(args.out_gtfs)
     the_date = date.fromisoformat(args.date)
 
-    logger.info(f"loading {in_file}")
-    logger.info(f"reducing it to {the_date}")
+    logger.info(f"loading {in_file} (reducing it to {the_date})")
     fiddler = GtfsFiddler(in_file, args.dist_unit, the_date)
     logger.info(f"densify trips")
     fiddler.ensure_earliest_departure(GtfsTime("05:00"))

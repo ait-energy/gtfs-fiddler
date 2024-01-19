@@ -11,6 +11,10 @@ from pandas import DataFrame, Series
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 
+def filter_by_route(df: DataFrame, route_id, direction_id):
+    return df[(df.route_id == route_id) & (df.direction_id == direction_id)]
+
+
 class GtfsFiddler:
     """
     Built on top of gtfs_kit.Feed to:
@@ -52,10 +56,6 @@ class GtfsFiddler:
         df = self._feed.trips
         return df[(df.route_id == route_id) & (df.direction_id == direction_id)]
 
-    # @property
-    # def sorted_trips(self) -> DataFrame:
-    #    return self._sorted_trips
-
     @property
     def stop_times(self) -> DataFrame:
         return self._feed.stop_times
@@ -85,6 +85,7 @@ class GtfsFiddler:
         Note, that this only works reliably if the feed was reduced to a single day.
         Otherwise the trips sorted by start time will be intermixed for different days.
         """
+
         pass
 
     def _ensure_earliest_or_latest_departure(

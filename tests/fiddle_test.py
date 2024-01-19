@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from datetime import date
-from gtfs_fiddler.fiddle import GtfsFiddler
+from gtfs_fiddler.fiddle import GtfsFiddler, filter_by_route
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
@@ -83,15 +83,40 @@ def test_ensure_latest_departure():
     assert _latest_departure(fiddler, route_id, direction_id) == GtfsTime("25:25")
 
 
-def _earliest_departure(fiddler: GtfsFiddler, route_id, direction_id):
+def test_ensure_max_trip_interval():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    route_id = "110-423"
+    direction_id = 0
+    original_departures = [GtfsTime(f"{h}:16:00") for h in range(7, 23)]
+    assert _all_departures(fiddler, route_id, direction_id) == original_departures
+
+    fiddler.ensure_max_trip_interval(90)
+    assert (
+        _all_departures(fiddler, route_id, direction_id) == original_departures
+    ), "no extra trips needed, no change expected"
+
+    fiddler.ensure_max_trip_interval(30)
+    expected_departures = [GtfsTime(f"{h}:46:00") for h in range(7, 22)]
+    expected_departures.extend(original_departures)
+    expected_departures = sorted(expected_departures)
+    assert _all_departures(fiddler, route_id, direction_id) == expected_departures
+
+
+def _all_departures(fiddler: GtfsFiddler, route_id, direction_id) -> list[GtfsTime]:
+    return list(
+        filter_by_route(fiddler.trips_with_times(), route_id, direction_id).start_time
+    )
+
+
+def _earliest_departure(fiddler: GtfsFiddler, route_id, direction_id) -> GtfsTime:
     return __departure(fiddler, route_id, direction_id, 0)
 
 
-def _latest_departure(fiddler: GtfsFiddler, route_id, direction_id):
+def _latest_departure(fiddler: GtfsFiddler, route_id, direction_id) -> GtfsTime:
     return __departure(fiddler, route_id, direction_id, -1)
 
 
-def __departure(fiddler: GtfsFiddler, route_id, direction_id, index):
+def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime:
     df = fiddler.trips_with_times()
     df = df[(df.route_id == route_id) & (df.direction_id == direction_id)]
     return df.iloc[index].start_time
