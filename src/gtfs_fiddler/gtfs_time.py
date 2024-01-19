@@ -13,12 +13,14 @@ class GtfsTime:
         """
         param time: either a HH:MM[:SS] string or seconds of day
         """
-        self.seconds_of_day = -1
         if isinstance(time, int):
             self.seconds_of_day = time
         elif isinstance(time, float):
+            self.seconds_of_day = time
             if not math.isnan(time):
                 raise ValueError("only NaN floats are allowed")
+        elif time.lower() == "nan":
+            self.seconds_of_day = math.nan
         else:
             tokens = time.split(":")
             try:
@@ -30,6 +32,8 @@ class GtfsTime:
                 raise ValueError(f"expected HH:MM:SS format but got {time}")
 
     def __repr__(self):
+        if math.isnan(self.seconds_of_day):
+            return str(self.seconds_of_day)
         hours = int(self.seconds_of_day / (60 * 60))
         minutes = int(self.seconds_of_day / 60) % 60
         seconds = self.seconds_of_day % 60

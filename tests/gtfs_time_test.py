@@ -1,3 +1,4 @@
+import math
 import pytest
 
 from gtfs_fiddler.gtfs_time import GtfsTime
@@ -9,8 +10,8 @@ def test_no_floats_other_than_nan_allowed():
 
 
 def test_float_nan_is_allowed():
-    time = GtfsTime(float("nan"))
-    assert time.seconds_of_day == -1
+    time = GtfsTime(math.nan)
+    assert math.isnan(time.seconds_of_day)
 
 
 def test_invalid_string_format():

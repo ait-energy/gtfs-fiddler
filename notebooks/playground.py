@@ -58,3 +58,4 @@ t = f.trips_enriched()
 minutes = 19
 t = t[t.time_to_next_trip > GtfsTime(minutes * 60)]
 # %%
+f.ensure_max_trip_interval(19)
