@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pytest
+import math
 from datetime import date
-from gtfs_fiddler.fiddle import GtfsFiddler, filter_by_route
+from gtfs_fiddler.fiddle import GtfsFiddler, trips_for_route
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
@@ -23,14 +24,32 @@ def test_loading_for_one_day():
     assert len(cairns_single_sunday.trips) == 266
 
 
-def test_trips_with_times_basic():
+def test_trips_enriched_basic():
     cairns_all = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
-    trips_with_times = cairns_all.trips_with_times()
+    trips_with_times = cairns_all.trips_enriched()
 
     assert len(trips_with_times) == 1339
     speed_median = trips_with_times.speed.median()
     # speed in kph
     assert 0 < speed_median and speed_median < 50
+
+
+def test_trips_enriched__time_to_next_trip():
+    cairns_single_sunday = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    trips_enriched = cairns_single_sunday.trips_enriched()
+
+    times = trips_for_route(trips_enriched, "110-423", 0).time_to_next_trip
+    assert len(times) == 16
+    expected = [GtfsTime("1:00") for _ in range(0, 15)]
+    assert list(times[:-1]) == expected, "one hour between all trips"
+    assert math.isnan(times.iloc[15]), "except the last one of course"
+
+    times = trips_for_route(trips_enriched, "123-423", 0).time_to_next_trip
+    assert len(times) == 11
+    expected = [GtfsTime("1:30") for _ in range(1, 10)]
+    assert times.iloc[0] == GtfsTime("1:00"), "one hour for first trip"
+    assert list(times[1:-1]) == expected, "90 minutes for all other trips"
+    assert math.isnan(times.iloc[10]), "except the last one of course"
 
 
 def test_ensure_earliest_departure():
@@ -104,7 +123,7 @@ def test_ensure_max_trip_interval():
 
 def _all_departures(fiddler: GtfsFiddler, route_id, direction_id) -> list[GtfsTime]:
     return list(
-        filter_by_route(fiddler.trips_with_times(), route_id, direction_id).start_time
+        trips_for_route(fiddler.trips_enriched(), route_id, direction_id).start_time
     )
 
 
@@ -117,6 +136,6 @@ def _latest_departure(fiddler: GtfsFiddler, route_id, direction_id) -> GtfsTime:
 
 
 def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime:
-    df = fiddler.trips_with_times()
+    df = fiddler.trips_enriched()
     df = df[(df.route_id == route_id) & (df.direction_id == direction_id)]
     return df.iloc[index].start_time

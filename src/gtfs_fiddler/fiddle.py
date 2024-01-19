@@ -11,8 +11,8 @@ from pandas import DataFrame, Series
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 
-def filter_by_route(df: DataFrame, route_id, direction_id):
-    return df[(df.route_id == route_id) & (df.direction_id == direction_id)]
+def trips_for_route(trips: DataFrame, route_id, direction_id):
+    return trips[(trips.route_id == route_id) & (trips.direction_id == direction_id)]
 
 
 class GtfsFiddler:
@@ -32,12 +32,26 @@ class GtfsFiddler:
             self._feed = self._original_feed
         # self._sorted_trips = GtfsFiddler._update_sorted_trips(self._feed)
 
-    def trips_with_times(self) -> DataFrame:
+    def trips_enriched(self) -> DataFrame:
+        """
+        Returns trips with added start and end time, time to next trip,
+        and distances
+        """
         trip_stats = self._feed.compute_trip_stats()
         trip2service = self._feed.trips[["trip_id", "service_id", "trip_headsign"]]
         df = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
         df.start_time = df.start_time.apply(GtfsTime)
         df.end_time = df.end_time.apply(GtfsTime)
+
+        def time_to_next_trip(df):
+            start = df.start_time.reset_index(drop=True)
+            next_start = df.start_time[1:].reset_index(drop=True)
+            return next_start - start
+
+        df["time_to_next_trip"] = (
+            df.groupby(["route_id", "direction_id"]).apply(time_to_next_trip).values
+        )
+
         return df.sort_values(by=["route_id", "direction_id", "start_time"])
 
     @property
@@ -80,12 +94,15 @@ class GtfsFiddler:
     def ensure_max_trip_interval(self, minutes: int):
         """
         For each interval (between two trips) larger than the given maximum
-        new trip(s) are inserted by duplicating the first trip.
+        new trip(s) are inserted by copying the first trip (as often as required).
 
         Note, that this only works reliably if the feed was reduced to a single day.
         Otherwise the trips sorted by start time will be intermixed for different days.
         """
-
+        suffix = "#densify"
+        # get trips enriched with arrival/departure times
+        t = self.trips_enriched()
+        t.groupby(["route_id", "direction_id"]).first()
         pass
 
     def _ensure_earliest_or_latest_departure(
@@ -93,7 +110,7 @@ class GtfsFiddler:
     ):
         suffix = "#early" if earliest else "#late"
         # get trips enriched with arrival/departure times
-        t = self.trips_with_times()
+        t = self.trips_enriched()
 
         # find the first/last trip of routes that need adjustment
         if earliest:
