@@ -51,8 +51,14 @@ class GtfsTime:
     def __gt__(self, other: Self) -> bool:
         return self.seconds_of_day > other.seconds_of_day
 
-    def __sub__(self, other: Self) -> Self:
-        return GtfsTime(self.seconds_of_day - other.seconds_of_day)
+    def __sub__(self, other: int | Self) -> Self:
+        secs = other
+        if not isinstance(other, int):
+            secs = other.seconds_of_day
+        return GtfsTime(self.seconds_of_day - secs)
 
-    def __add__(self, other: Self) -> Self:
-        return GtfsTime(self.seconds_of_day + other.seconds_of_day)
+    def __add__(self, other: int | Self) -> Self:
+        secs = other
+        if not isinstance(other, int):
+            secs = other.seconds_of_day
+        return GtfsTime(self.seconds_of_day + secs)

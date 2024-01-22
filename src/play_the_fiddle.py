@@ -24,9 +24,12 @@ def main(args):
 
     logger.info(f"loading {in_file} (reducing it to {the_date})")
     fiddler = GtfsFiddler(in_file, args.dist_unit, the_date)
-    logger.info(f"densify trips")
+    logger.info(f"ensure earliest departure")
     fiddler.ensure_earliest_departure(GtfsTime("05:00"))
+    logger.info(f"ensure latest departure")
     fiddler.ensure_latest_departure(GtfsTime("23:00"))
+    logger.info(f"ensure max trip interval")
+    fiddler.ensure_max_trip_interval(5)
     logger.info(f"writing result to {out_file}")
     fiddler.feed.write(out_file)
 

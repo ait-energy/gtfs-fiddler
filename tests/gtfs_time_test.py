@@ -44,10 +44,12 @@ def test_not_equals():
 
 def test_subtraction():
     assert GtfsTime("09:00:00") - GtfsTime("08:59:00") == GtfsTime("00:01:00")
+    assert GtfsTime("09:00:00") - 8 * 60 * 60 - 59 * 60 == GtfsTime("00:01:00")
 
 
 def test_addition():
     assert GtfsTime("09:00:00") + GtfsTime("01:01:01") == GtfsTime("10:01:01")
+    assert GtfsTime("09:00:00") + 1 * 60 * 60 + 1 * 60 + 1 == GtfsTime("10:01:01")
 
 
 def test_beyond_24h():
