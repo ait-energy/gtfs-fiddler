@@ -6,6 +6,7 @@ from typing import Hashable
 import gtfs_kit as gk
 import pandas as pd
 from gtfs_kit.feed import Feed
+import gtfs_kit.helpers as hp
 from gtfs_kit.miscellany import restrict_to_dates
 from gtfs_kit.stop_times import append_dist_to_stop_times
 from pandas import DataFrame, Series
@@ -33,14 +34,21 @@ def cumcount(s: Series):
 def compute_stop_time_stats(feed: Feed):
     """
     returns a copy of the stop_times df with the additional columns
-    `seconds_to_next_stop`, `dist_to_next_stop`, `speed`.
-    Also `arrival_time` and `departure_time` are converted to GtfsTime
+    `seconds_to_next_stop`, `dist_to_next_stop`, `speed` (in either mph or kph depending on the feed's distance unit).
+    Also `arrival_time` and `departure_time` are converted to GtfsTime.
     """
     st = feed.stop_times
     if "shape_dist_traveled" in st.columns:
         st = st.copy()
     else:
         st = append_dist_to_stop_times(feed).stop_times
+
+    # convert to km or mi
+    if hp.is_metric(feed.dist_units):
+        convert_dist = hp.get_convert_dist(feed.dist_units, "km")
+    else:
+        convert_dist = hp.get_convert_dist(feed.dist_units, "mi")
+    st.shape_dist_traveled = st.shape_dist_traveled.apply(convert_dist)
 
     st.arrival_time = st.arrival_time.apply(GtfsTime)
     st.departure_time = st.departure_time.apply(GtfsTime)
@@ -61,6 +69,7 @@ def compute_stop_time_stats(feed: Feed):
     st["dist_to_next_stop"] = (
         st.groupby("trip_id")["shape_dist_traveled"].diff(periods=-1) * -1
     )
+    # speed in distance unit per hour
     st["speed"] = st.dist_to_next_stop / (st.seconds_to_next_stop / 3600)
     return st
 
