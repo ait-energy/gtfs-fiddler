@@ -4,7 +4,12 @@ from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 import math
 from datetime import date
-from gtfs_fiddler.fiddle import GtfsFiddler, make_unique, trips_for_route
+from gtfs_fiddler.fiddle import (
+    GtfsFiddler,
+    compute_stop_time_stats,
+    make_unique,
+    trips_for_route,
+)
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
@@ -17,6 +22,108 @@ def test_make_unique():
     expected = Series("a a2 b a3 b2 c d c2 c3 e a4 a5".split())
 
     assert_series_equal(expected, make_unique(s))
+
+
+def test_compute_stop_time_stats():
+    feed = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT).feed
+
+    # first trip of route "110-423", 0
+    # "CNS2014-CNS_MUL-Sunday-00-4165971"
+    # add fake distances for one trip
+    st_orig = feed.stop_times.set_index("trip_id")
+    st_orig.loc["CNS2014-CNS_MUL-Sunday-00-4165971", "shape_dist_traveled"] = (
+        Series(
+            [
+                "0.0",
+                "0.0",
+                "0.722",
+                "1.69",
+                "2.15",
+                "3.38",
+                "4.29",
+                "4.5",
+                "4.92",
+                "5.45",
+                "5.83",
+                "6.11",
+                "6.92",
+                "nan",
+                "nan",
+                "11.0",
+                "12.2",
+                "13.7",
+                "15.1",
+                "16.7",
+                "27.9",
+                "27.9",
+                "28.4",
+                "28.4",
+                "28.8",
+                "29.0",
+                "29.5",
+                "29.5",
+                "29.9",
+                "30.3",
+                "30.3",
+                "31.0",
+                "31.3",
+                "31.5",
+                "32.0",
+            ]
+        )
+        .astype(float)
+        .values
+    )
+    feed.stop_times = st_orig.reset_index()
+
+    st = compute_stop_time_stats(feed)
+    assert len(feed.stop_times) == len(st)
+    assert (
+        set(["seconds_to_next_stop", "dist_to_next_stop", "speed"]) - set(st.columns)
+        == set()
+    )
+
+    assert list(
+        st.set_index("trip_id")
+        .loc["CNS2014-CNS_MUL-Sunday-00-4165971"]
+        .speed.apply(lambda v: f"{v:.2f}")
+    ) == [
+        "nan",
+        "21.66",
+        "29.04",
+        "27.60",
+        "36.90",
+        "27.30",
+        "12.60",
+        "25.20",
+        "31.80",
+        "22.80",
+        "16.80",
+        "48.60",
+        "nan",
+        "nan",
+        "nan",
+        "36.00",
+        "45.00",
+        "42.00",
+        "32.00",
+        "48.00",
+        "nan",
+        "30.00",
+        "nan",
+        "24.00",
+        "12.00",
+        "30.00",
+        "nan",
+        "24.00",
+        "24.00",
+        "nan",
+        "21.00",
+        "18.00",
+        "12.00",
+        "15.00",
+        "nan",
+    ]
 
 
 def test_basic_loading():

@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 "--dist-unit",
                 "m",
@@ -25,7 +25,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "args": [
                 "/home/mstraub/projects/gtfs-fiddler/data/cairns_gtfs.zip",
                 "2014-06-01",

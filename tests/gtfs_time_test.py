@@ -24,6 +24,11 @@ def test_int_constructor():
     assert time.seconds_of_day == 1000
 
 
+def test_constructor_with_self_type():
+    time = GtfsTime(GtfsTime(1000))
+    assert time.seconds_of_day == 1000
+
+
 def test_regular_constructor():
     time = GtfsTime("00:00:00")
     assert time.seconds_of_day == 0

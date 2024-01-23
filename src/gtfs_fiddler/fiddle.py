@@ -7,6 +7,7 @@ import gtfs_kit as gk
 import pandas as pd
 from gtfs_kit.feed import Feed
 from gtfs_kit.miscellany import restrict_to_dates
+from gtfs_kit.stop_times import append_dist_to_stop_times
 from pandas import DataFrame, Series
 
 from gtfs_fiddler.gtfs_time import GtfsTime
@@ -27,6 +28,41 @@ def make_unique(s: Series):
 
 def cumcount(s: Series):
     return s.to_frame(name="x").groupby(by="x").cumcount().add(1)
+
+
+def compute_stop_time_stats(feed: Feed):
+    """
+    returns a copy of the stop_times df with the additional columns
+    `seconds_to_next_stop`, `dist_to_next_stop`, `speed`.
+    Also `arrival_time` and `departure_time` are converted to GtfsTime
+    """
+    st = feed.stop_times
+    if "shape_dist_traveled" in st.columns:
+        st = st.copy()
+    else:
+        st = append_dist_to_stop_times(feed).stop_times
+
+    st.arrival_time = st.arrival_time.apply(GtfsTime)
+    st.departure_time = st.departure_time.apply(GtfsTime)
+
+    def seconds_to_next_stop(df):
+        departure = df.departure_time.reset_index(drop=True).apply(
+            lambda v: v.seconds_of_day
+        )
+        arrival = (
+            df.arrival_time[1:].reset_index(drop=True).apply(lambda v: v.seconds_of_day)
+        )
+        return arrival - departure
+
+    st = st.sort_values(by=["trip_id", "stop_sequence"])
+    st["seconds_to_next_stop"] = (
+        st.groupby(["trip_id"]).apply(seconds_to_next_stop).values
+    )
+    st["dist_to_next_stop"] = (
+        st.groupby("trip_id")["shape_dist_traveled"].diff(periods=-1) * -1
+    )
+    st["speed"] = st.dist_to_next_stop / (st.seconds_to_next_stop / 3600)
+    return st
 
 
 class GtfsFiddler:
@@ -51,6 +87,9 @@ class GtfsFiddler:
         Returns trips with added start and end time, time to next trip,
         and distances
         """
+        # TODO actually we don't need the distance for most calls
+        # of this method. avoiding these calculations could improve runtimes.
+
         trip_stats = self._feed.compute_trip_stats()
         # add missing columns again
         trip2service = self._feed.trips[

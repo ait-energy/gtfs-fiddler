@@ -9,11 +9,13 @@ class GtfsTime:
     Allows for hour values larger than 24.
     """
 
-    def __init__(self, time: str | int | float):
+    def __init__(self, time: Self | str | int | float):
         """
         param time: either a HH:MM[:SS] string or seconds of day
         """
-        if isinstance(time, int):
+        if isinstance(time, GtfsTime):
+            self.seconds_of_day = time.seconds_of_day
+        elif isinstance(time, int):
             self.seconds_of_day = time
         elif isinstance(time, float):
             self.seconds_of_day = time
