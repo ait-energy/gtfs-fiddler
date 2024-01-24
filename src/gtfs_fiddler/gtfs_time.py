@@ -11,7 +11,9 @@ class GtfsTime:
 
     def __init__(self, time: Self | str | int | float):
         """
-        param time: either a HH:MM[:SS] string or seconds of day
+        Args:
+          time:
+             either a HH:MM[:SS] string or seconds of day. float values are rounded.
         """
         if isinstance(time, GtfsTime):
             self.seconds_of_day = time.seconds_of_day
@@ -20,7 +22,7 @@ class GtfsTime:
         elif isinstance(time, float):
             self.seconds_of_day = time
             if not math.isnan(time):
-                raise ValueError("only NaN floats are allowed")
+                self.seconds_of_day = round(time)
         elif time.lower() == "nan":
             self.seconds_of_day = math.nan
         else:
@@ -53,14 +55,14 @@ class GtfsTime:
     def __gt__(self, other: Self) -> bool:
         return self.seconds_of_day > other.seconds_of_day
 
-    def __sub__(self, other: int | Self) -> Self:
+    def __sub__(self, other: int | float | Self) -> Self:
         secs = other
-        if not isinstance(other, int):
+        if isinstance(other, GtfsTime):
             secs = other.seconds_of_day
         return GtfsTime(self.seconds_of_day - secs)
 
-    def __add__(self, other: int | Self) -> Self:
+    def __add__(self, other: int | float | Self) -> Self:
         secs = other
-        if not isinstance(other, int):
+        if isinstance(other, GtfsTime):
             secs = other.seconds_of_day
         return GtfsTime(self.seconds_of_day + secs)

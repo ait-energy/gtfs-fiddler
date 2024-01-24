@@ -48,7 +48,7 @@ def compute_stop_time_stats(feed: Feed):
         convert_dist = hp.get_convert_dist(feed.dist_units, "km")
     else:
         convert_dist = hp.get_convert_dist(feed.dist_units, "mi")
-    st.shape_dist_traveled = st.shape_dist_traveled.apply(convert_dist)
+    st.shape_dist_traveled = st.shape_dist_traveled.apply(convert_dist).ffill()
 
     st.arrival_time = st.arrival_time.apply(GtfsTime)
     st.departure_time = st.departure_time.apply(GtfsTime)
@@ -79,6 +79,9 @@ class GtfsFiddler:
     Built on top of gtfs_kit.Feed to:
     - Provide typed access to the feed's members (autocompletion!)
     - Densify a feed by copying trips (and adjusting the copies' times)
+
+    Potential future features:
+    - allow filtering of route types (or route ids) to be densified
     """
 
     def __init__(self, p: Path, dist_units: str, date: date | None = None):
@@ -141,6 +144,10 @@ class GtfsFiddler:
 
     def tripcount_per_route_and_service(self) -> Series:
         return self.trips.groupby(["route_id", "service_id"]).size()
+
+    @property
+    def agency(self) -> DataFrame:
+        return self._feed.agency
 
     def ensure_earliest_departure(self, target_time: GtfsTime):
         """
@@ -267,3 +274,54 @@ class GtfsFiddler:
         stop_times.arrival_time = stop_times.arrival_time + adjustment
         stop_times.departure_time = stop_times.departure_time + adjustment
         return stop_times
+
+    def ensure_speed(self, route_type2speed: dict[int, float]):
+        """
+        Override the original travel times of each trip with travel times
+        calculated from the given speeds and the departure time
+        of the first stop. Only trips of routes with a type present
+        in `route_type2speed` are modified.
+
+        Args:
+          speeds:
+            Mapping of route type to speed.
+            Speed in either mph or kph depending on the feed's distance unit.
+        """
+        # keep fahrgastwechselzeiten (departure-arrival)?
+        # keep 0-duration segments at 0!
+        # adjust all other segments to avg speed
+        # (means we will have second-granularity of arr/dep times)
+
+        # get trips_enriched()
+        trips = self.trips.join(
+            self.routes.set_index("route_id").route_type, on="route_id"
+        )
+        groups = trips.groupby("route_type").groups
+        trips.g
+        pass
+
+    @staticmethod
+    def _speed_up_trip(df, speed):
+        """
+        Adjust stop times (of a single trip).
+        Reduces the time between two stops if the provided speed
+        is faster than the original travel time.
+
+        Requires column "dist_to_next_stop"
+        """
+        seconds_to_next_stop_new = (df.dist_to_next_stop / speed) * 3600
+        seconds_to_next_stop_min = DataFrame(
+            [df.seconds_to_next_stop.values, seconds_to_next_stop_new.values]
+        ).min()
+        traveltime_cumsum = seconds_to_next_stop_min.shift(periods=1).cumsum()
+        traveltime_cumsum.iloc[0] = 0
+
+        stay_seconds = (df.departure_time - df.arrival_time).apply(
+            lambda v: v.seconds_of_day
+        )
+        first_arrival_time = df.iloc[0].arrival_time
+        df["arrival_time_new"] = (
+            traveltime_cumsum.apply(lambda v: GtfsTime(v)) + first_arrival_time
+        ).values
+        df["departure_time_new"] = df.arrival_time_new + stay_seconds
+        return df

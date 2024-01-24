@@ -295,3 +295,13 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
     df = fiddler.trips_enriched()
     df = df[(df.route_id == route_id) & (df.direction_id == direction_id)]
     return df.iloc[index].start_time
+
+
+def test_adjust_stop_times_with_speed():
+    feed = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT).feed
+
+    # first trip of route "110-423", 0
+    # "CNS2014-CNS_MUL-Sunday-00-4165971"
+    # add fake distances for one trip
+    st = compute_stop_time_stats(feed)
+    st = st[st.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"]

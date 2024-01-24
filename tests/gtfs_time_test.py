@@ -4,9 +4,9 @@ import pytest
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 
-def test_no_floats_other_than_nan_allowed():
-    with pytest.raises(ValueError):
-        GtfsTime(float(123.456))
+def test_floats_are_rounded():
+    assert GtfsTime(123.456).seconds_of_day == 123
+    assert GtfsTime(123.98).seconds_of_day == 124
 
 
 def test_float_nan_is_allowed():
@@ -20,18 +20,15 @@ def test_invalid_string_format():
 
 
 def test_int_constructor():
-    time = GtfsTime(1000)
-    assert time.seconds_of_day == 1000
+    assert GtfsTime(1000).seconds_of_day == 1000
 
 
 def test_constructor_with_self_type():
-    time = GtfsTime(GtfsTime(1000))
-    assert time.seconds_of_day == 1000
+    assert GtfsTime(GtfsTime(1000)).seconds_of_day == 1000
 
 
 def test_regular_constructor():
-    time = GtfsTime("00:00:00")
-    assert time.seconds_of_day == 0
+    assert GtfsTime("00:00:00").seconds_of_day == 0
 
 
 def test_regular_constructor2():
@@ -50,11 +47,15 @@ def test_not_equals():
 def test_subtraction():
     assert GtfsTime("09:00:00") - GtfsTime("08:59:00") == GtfsTime("00:01:00")
     assert GtfsTime("09:00:00") - 8 * 60 * 60 - 59 * 60 == GtfsTime("00:01:00")
+    assert GtfsTime("09:00:00") - 1.23 == GtfsTime("08:59:59")
+    assert GtfsTime("09:00:00") - 1.6 == GtfsTime("08:59:58")
 
 
 def test_addition():
     assert GtfsTime("09:00:00") + GtfsTime("01:01:01") == GtfsTime("10:01:01")
     assert GtfsTime("09:00:00") + 1 * 60 * 60 + 1 * 60 + 1 == GtfsTime("10:01:01")
+    assert GtfsTime("09:00:00") + 1.23 == GtfsTime("09:00:01")
+    assert GtfsTime("09:00:00") + 1.60 == GtfsTime("09:00:02")
 
 
 def test_beyond_24h():
