@@ -103,7 +103,7 @@ def test_compute_stop_time_stats():
         "48.60",
         "nan",
         "nan",
-        "nan",
+        "61.20",
         "36.00",
         "45.00",
         "42.00",

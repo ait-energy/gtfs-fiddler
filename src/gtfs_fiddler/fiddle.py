@@ -218,13 +218,12 @@ class GtfsFiddler:
         collected_stop_times = t[
             ["trip_id", "trip_id_original", "offset_seconds"]
         ].apply(teh_lambda, axis=1)
-
-        collected_stop_times = list(collected_stop_times)
-        collected_stop_times.append(self.stop_times)
-        new_st = pd.concat(collected_stop_times).reset_index(drop=True)
+        new_st = pd.concat(list(collected_stop_times))
         new_st.arrival_time = new_st.arrival_time.apply(str)
         new_st.departure_time = new_st.departure_time.apply(str)
-        self._feed.stop_times = new_st.sort_values(["trip_id", "stop_sequence"])
+
+        all_st = pd.concat([self.stop_times, new_st]).reset_index(drop=True)
+        self._feed.stop_times = all_st.sort_values(["trip_id", "stop_sequence"])
 
     def _ensure_earliest_or_latest_departure(
         self, target_time: GtfsTime, earliest: bool
