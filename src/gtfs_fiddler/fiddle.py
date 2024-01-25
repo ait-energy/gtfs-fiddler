@@ -281,7 +281,7 @@ class GtfsFiddler:
         stop_times.departure_time = stop_times.departure_time + adjustment
         return stop_times
 
-    def ensure_speed(self, route_type2speed: dict[int, float]):
+    def ensure_min_speed(self, route_type2speed: dict[int, float]):
         """
         Override the original travel times of each trip with travel times
         calculated from the given speeds and the departure time
@@ -293,12 +293,6 @@ class GtfsFiddler:
             Mapping of route type to speed.
             Speed in either mph or kph depending on the feed's distance unit.
         """
-        # keep fahrgastwechselzeiten (departure-arrival)?
-        # keep 0-duration segments at 0!
-        # adjust all other segments to avg speed
-        # (means we will have second-granularity of arr/dep times)
-
-        # get trips_enriched()
         trips = self.trips.join(
             self.routes.set_index("route_id").route_type, on="route_id"
         )
@@ -307,7 +301,7 @@ class GtfsFiddler:
         pass
 
     @staticmethod
-    def _speed_up_trip(df, speed):
+    def _ensure_min_speed_of_trip(df, speed):
         """
         Adjust stop times (of a single trip).
         Reduces the time between two stops if the provided speed
@@ -333,7 +327,7 @@ class GtfsFiddler:
         df["arrival_time"] = (
             traveltime_cumsum.apply(GtfsTime) + first_arrival_time
         ).values
-        # ensure that missing values in original feed stay missing
+        # guarantee that missing values in original feed stay missing
         df.loc[stay_seconds.isna(), "arrival_time"] = GtfsTime(math.nan)
         df["departure_time"] = df.arrival_time + stay_seconds
         return df

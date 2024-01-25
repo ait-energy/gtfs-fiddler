@@ -298,7 +298,7 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
     return df.iloc[index].start_time
 
 
-def test_adjust_stop_times_with_speed():
+def test_ensure_min_speed_of_trip():
     f = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
 
     # first trip of route "110-423", 0
@@ -325,11 +325,11 @@ def test_adjust_stop_times_with_speed():
         ]
     ].copy()
     # speed up line to 25 kph
-    st_25 = GtfsFiddler._speed_up_trip(st, 25)
+    st_25 = GtfsFiddler._ensure_min_speed_of_trip(st, 25)
     actual["arrival_time_25"] = st_25.arrival_time
     actual["departure_time_25"] = st_25.departure_time
     # speed up line to 50 kph
-    st_50 = GtfsFiddler._speed_up_trip(st, 50)
+    st_50 = GtfsFiddler._ensure_min_speed_of_trip(st, 50)
     actual["arrival_time_50"] = st_50.arrival_time
     actual["departure_time_50"] = st_50.departure_time
     # actual.to_csv("/tmp/export.csv", index=False)
@@ -345,7 +345,7 @@ def test_adjust_stop_times_with_speed():
     #   arrival and departure time is set!
 
     assert_frame_equal_to_csv(
-        actual, Path("./tests/data/test_adjust_stop_times_with_speed.csv")
+        actual, Path("./tests/data/test_ensure_min_speed_of_trip.csv")
     )
 
 
