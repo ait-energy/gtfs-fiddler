@@ -127,22 +127,22 @@ def test_compute_stop_time_stats():
     ]
 
 
-def test_basic_loading():
-    cairns_all = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
-    assert len(cairns_all.routes) == 22
-    assert len(cairns_all.trips) == 1339
-    assert len(cairns_all.stop_times) == 37790
+def test_init__full_feed():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    assert len(fiddler.routes) == 22
+    assert len(fiddler.trips) == 1339
+    assert len(fiddler.stop_times) == 37790
 
 
-def test_loading_for_one_day():
-    cairns_single_sunday = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
-    assert len(cairns_single_sunday.routes) == 14
-    assert len(cairns_single_sunday.trips) == 266
+def test_init__single_sunday_only():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    assert len(fiddler.routes) == 14
+    assert len(fiddler.trips) == 266
 
 
 def test_trips_enriched_basic():
-    cairns_all = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
-    trips_with_times = cairns_all.trips_enriched()
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    trips_with_times = fiddler.trips_enriched()
 
     assert len(trips_with_times) == 1339
     speed_median = trips_with_times.speed.median()
@@ -151,8 +151,8 @@ def test_trips_enriched_basic():
 
 
 def test_trips_enriched__time_to_next_trip():
-    cairns_single_sunday = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
-    trips_enriched = cairns_single_sunday.trips_enriched()
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT, SUNDAY)
+    trips_enriched = fiddler.trips_enriched()
 
     times = trips_for_route(trips_enriched, "110-423", 0).time_to_next_trip
     assert len(times) == 16
@@ -298,20 +298,33 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
     return df.iloc[index].start_time
 
 
+def test_ensure_min_speed():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    original_st = fiddler.stop_times.copy()
+
+    # empty request, should not change anything
+    fiddler.ensure_min_speed({})
+    assert_frame_equal(fiddler.stop_times, original_st)
+
+    # change all busses to travel at >= 50 kph
+    fiddler.ensure_min_speed({3: 50})
+    assert len(fiddler.stop_times) == len(original_st)
+
+
 def test_ensure_min_speed_of_trip():
-    f = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
 
     # first trip of route "110-423", 0
     # "CNS2014-CNS_MUL-Sunday-00-4165971"
 
     # add a 30 secs stay (to check that stays are retained)
-    idx = f.stop_times[
-        f.stop_times.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"
+    idx = fiddler.stop_times[
+        fiddler.stop_times.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"
     ].index
-    assert f.stop_times.loc[idx[2]].departure_time == "07:18:00"
-    f.stop_times.loc[idx[2], "departure_time"] = "07:18:30"
+    assert fiddler.stop_times.loc[idx[2]].departure_time == "07:18:00"
+    fiddler.stop_times.loc[idx[2], "departure_time"] = "07:18:30"
 
-    st = compute_stop_time_stats(f.feed)
+    st = compute_stop_time_stats(fiddler.feed)
     st = st[st.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"]
 
     actual = st[

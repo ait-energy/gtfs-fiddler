@@ -293,12 +293,24 @@ class GtfsFiddler:
             Mapping of route type to speed.
             Speed in either mph or kph depending on the feed's distance unit.
         """
-        trips = self.trips.join(
+        st = compute_stop_time_stats(self.feed)
+        trip2route = self.trips.join(
             self.routes.set_index("route_id").route_type, on="route_id"
-        )
-        groups = trips.groupby("route_type").groups
-        trips.g
-        pass
+        )[["trip_id", "route_id", "route_type"]]
+        st = st.join(trip2route.set_index("trip_id"), on="trip_id")
+
+        def teh_magic(df):
+            if int(df.name) not in route_type2speed:
+                return df
+            speed = route_type2speed[int(df.name)]
+            return df.groupby("trip_id").apply(
+                lambda v: GtfsFiddler._ensure_min_speed_of_trip(v, speed)
+            )
+
+        # TODO GtfsTime to str, clean of unnecessary cols
+        new_st = st.groupby("route_type").apply(teh_magic)
+        # only keep columns according to original feed
+        self.feed.stop_times = new_st.reset_index()[self.stop_times.columns]
 
     @staticmethod
     def _ensure_min_speed_of_trip(df, speed):

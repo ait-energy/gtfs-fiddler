@@ -7,15 +7,19 @@ from pathlib import Path
 import gtfs_kit as gk
 import pandas as pd
 from gtfs_kit.validators import check_stop_times
+from pandas import DataFrame
 
+from gtfs_fiddler import gtfs_time
 from gtfs_fiddler.fiddle import (
     GtfsFiddler,
-    trips_for_route,
-    make_unique,
-    cumcount,
     compute_stop_time_stats,
+    cumcount,
+    make_unique,
+    trips_for_route,
 )
 from gtfs_fiddler.gtfs_time import GtfsTime
+
+importlib.reload(gtfs_time)
 
 DATA_PATH = Path("../data")
 print(f"working with data in {DATA_PATH.resolve().absolute()}")
@@ -99,6 +103,7 @@ wl = te[te.agency_id == wiener_linien]
 wl.groupby(by="route_type").apply(lambda v: v.speed.describe())
 # %%
 from collections.abc import Sequence
+
 from pandas import DataFrame
 
 
@@ -119,91 +124,8 @@ st = st.sort_values(["trip_id", "stop_sequence"]).set_index("trip_id")
 st = st.loc[["999.T0.23-70A-j22-1.3.R"]]
 
 # %%
-import importlib
-from gtfs_fiddler import gtfs_time
 
-importlib.reload(gtfs_time)
-from gtfs_fiddler.gtfs_time import GtfsTime
-from pandas import DataFrame
-
-
-def adjust_trip(df, speed):
-    """adjust stop times (of a single trip)"""
-    seconds_to_next_stop_new = (df.dist_to_next_stop / speed) * 3600
-    seconds_to_next_stop_min = DataFrame(
-        [df.seconds_to_next_stop.values, seconds_to_next_stop_new.values]
-    ).min()
-    traveltime_cumsum = seconds_to_next_stop_min.shift(periods=1).cumsum()
-    traveltime_cumsum.iloc[0] = 0
-
-    stay_seconds = (st.departure_time - st.arrival_time).apply(
-        lambda v: v.seconds_of_day
-    )
-    first_arrival_time = df.iloc[0].arrival_time
-    df["arrival_time_new"] = (
-        traveltime_cumsum.apply(lambda v: GtfsTime(v)) + first_arrival_time
-    ).values
-    df["departure_time_new"] = df.arrival_time_new + stay_seconds
-    return df
-
-
-s = adjust_trip(st, 30)  # .arrival_time_new
-type(s)
-s
 
 # %%
 st = compute_stop_time_stats(f.feed)
 st = st[st.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"]
-
-
-# %%
-def _speed_up_trip(df, speed):
-    """
-    Adjust stop times (of a single trip).
-    Reduces the time between two stops if the provided speed
-    is faster than the original travel time.
-
-    Requires column "dist_to_next_stop"
-    """
-    seconds_to_next_stop_new = (df.dist_to_next_stop / speed) * 3600
-    seconds_to_next_stop_min = pd.DataFrame(
-        [df.seconds_to_next_stop.values, seconds_to_next_stop_new.values]
-    ).min()
-    traveltime_cumsum = seconds_to_next_stop_min.shift(periods=1).cumsum()
-    traveltime_cumsum.iloc[0] = 0
-
-    stay_seconds = (df.departure_time - df.arrival_time).apply(
-        lambda v: v.seconds_of_day
-    )
-    first_arrival_time = df.iloc[0].arrival_time
-    df = df.copy()
-    df["arrival_time_new"] = (
-        traveltime_cumsum.apply(GtfsTime) + first_arrival_time
-    ).values
-    # ensure that missing values in original feed stay missing
-    df["arrival_time_new"].loc[stay_seconds.apply(GtfsTime.isnan)] = GtfsTime(math.nan)
-    df["departure_time_new"] = df.arrival_time_new + stay_seconds
-
-    df["seconds_to_next_stop_min"] = seconds_to_next_stop_min
-    df["traveltime_cumsum"] = traveltime_cumsum
-
-    return df[
-        [
-            "arrival_time",
-            "departure_time",
-            "shape_dist_traveled",
-            "dist_to_next_stop",
-            "seconds_to_next_stop",
-            "speed",
-            "seconds_to_next_stop_min",
-            "traveltime_cumsum",
-            "arrival_time_new",
-            "departure_time_new",
-        ]
-    ]
-
-
-_speed_up_trip(st, 10)
-
-
-# %%
