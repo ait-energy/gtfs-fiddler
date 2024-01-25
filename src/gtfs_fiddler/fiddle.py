@@ -50,8 +50,12 @@ def compute_stop_time_stats(feed: Feed):
         convert_dist = hp.get_convert_dist(feed.dist_units, "mi")
     st.shape_dist_traveled = st.shape_dist_traveled.apply(convert_dist).ffill()
 
-    st.arrival_time = st.arrival_time.apply(GtfsTime)
-    st.departure_time = st.departure_time.apply(GtfsTime)
+    # ffill arrival and departure times for distance / seconds computation
+    # but keep the original to set it before returning
+    arrival_time_orig = st.arrival_time.apply(GtfsTime)
+    departure_time_orig = st.departure_time.apply(GtfsTime)
+    st.arrival_time = st.arrival_time.ffill().apply(GtfsTime)
+    st.departure_time = st.departure_time.ffill().apply(GtfsTime)
 
     def seconds_to_next_stop(df):
         departure = df.departure_time.reset_index(drop=True).apply(
@@ -71,6 +75,9 @@ def compute_stop_time_stats(feed: Feed):
     )
     # speed in distance unit per hour
     st["speed"] = st.dist_to_next_stop / (st.seconds_to_next_stop / 3600)
+
+    st.arrival_time = arrival_time_orig
+    st.departure_time = departure_time_orig
     return st
 
 
@@ -308,9 +315,12 @@ class GtfsFiddler:
         is faster than the original travel time.
 
         Requires column "dist_to_next_stop"
+
+        Returns a copy of the input df with
+        changed "arrival_time" and "departure_time"
         """
         seconds_to_next_stop_new = (df.dist_to_next_stop / speed) * 3600
-        seconds_to_next_stop_min = DataFrame(
+        seconds_to_next_stop_min = pd.DataFrame(
             [df.seconds_to_next_stop.values, seconds_to_next_stop_new.values]
         ).min()
         traveltime_cumsum = seconds_to_next_stop_min.shift(periods=1).cumsum()
@@ -320,8 +330,11 @@ class GtfsFiddler:
             lambda v: v.seconds_of_day
         )
         first_arrival_time = df.iloc[0].arrival_time
-        df["arrival_time_new"] = (
-            traveltime_cumsum.apply(lambda v: GtfsTime(v)) + first_arrival_time
+        df = df.copy()
+        df["arrival_time"] = (
+            traveltime_cumsum.apply(GtfsTime) + first_arrival_time
         ).values
-        df["departure_time_new"] = df.arrival_time_new + stay_seconds
+        # ensure that missing values in original feed stay missing
+        df.loc[stay_seconds.isna(), "arrival_time"] = GtfsTime(math.nan)
+        df["departure_time"] = df.arrival_time + stay_seconds
         return df

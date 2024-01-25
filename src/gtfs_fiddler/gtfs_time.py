@@ -23,7 +23,7 @@ class GtfsTime:
             self.seconds_of_day = time
             if not math.isnan(time):
                 self.seconds_of_day = round(time)
-        elif time.lower() == "nan":
+        elif time == "":
             self.seconds_of_day = math.nan
         else:
             tokens = time.split(":")
@@ -35,9 +35,12 @@ class GtfsTime:
             except:
                 raise ValueError(f"expected HH:MM:SS format but got {time}")
 
+    def isnan(self):
+        return math.isnan(self.seconds_of_day)
+
     def __repr__(self):
         if math.isnan(self.seconds_of_day):
-            return str(self.seconds_of_day)
+            return ""
         hours = int(self.seconds_of_day / (60 * 60))
         minutes = int(self.seconds_of_day / 60) % 60
         seconds = self.seconds_of_day % 60

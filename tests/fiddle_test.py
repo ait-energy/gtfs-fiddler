@@ -1,5 +1,5 @@
 from pathlib import Path
-from pandas import Series
+from pandas import DataFrame, Series
 from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 import math
@@ -11,6 +11,7 @@ from gtfs_fiddler.fiddle import (
     trips_for_route,
 )
 from gtfs_fiddler.gtfs_time import GtfsTime
+import pandas as pd
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
 SUNDAY = date(2014, 6, 1)
@@ -298,10 +299,57 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
 
 
 def test_adjust_stop_times_with_speed():
-    feed = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT).feed
+    f = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
 
     # first trip of route "110-423", 0
     # "CNS2014-CNS_MUL-Sunday-00-4165971"
-    # add fake distances for one trip
-    st = compute_stop_time_stats(feed)
+
+    # add a 30 secs stay (to check that stays are retained)
+    idx = f.stop_times[
+        f.stop_times.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"
+    ].index
+    assert f.stop_times.loc[idx[2]].departure_time == "07:18:00"
+    f.stop_times.loc[idx[2], "departure_time"] = "07:18:30"
+
+    st = compute_stop_time_stats(f.feed)
     st = st[st.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"]
+
+    actual = st[
+        [
+            "stop_id",
+            "stop_sequence",
+            # "dist_to_next_stop",
+            # "seconds_to_next_stop",
+            "arrival_time",
+            "departure_time",
+        ]
+    ].copy()
+    # speed up line to 25 kph
+    st_25 = GtfsFiddler._speed_up_trip(st, 25)
+    actual["arrival_time_25"] = st_25.arrival_time
+    actual["departure_time_25"] = st_25.departure_time
+    # speed up line to 50 kph
+    st_50 = GtfsFiddler._speed_up_trip(st, 50)
+    actual["arrival_time_50"] = st_50.arrival_time
+    actual["departure_time_50"] = st_50.departure_time
+    # actual.to_csv("/tmp/export.csv", index=False)
+
+    # check if results are as expected.
+    # the expected df was checked for these details:
+    # - for stop 15 arrival+departure time should be missing (as in the original)
+    # - all other arrival+departure times must be set
+    # - the 30 second stay at stop 3 must be retained
+    # - between stops 14-16 the bus drives on a motorway at high speed.
+    #   .. we must not reduce the speed there even if this specific
+    #   trip makes this complicated because for stop 15 no
+    #   arrival and departure time is set!
+
+    assert_frame_equal_to_csv(
+        actual, Path("./tests/data/test_adjust_stop_times_with_speed.csv")
+    )
+
+
+def assert_frame_equal_to_csv(df: DataFrame, path: Path):
+    actual = df.astype(str).reset_index(drop=True)
+    expected = pd.read_csv(path, dtype=str, keep_default_na=False)
+    assert_frame_equal(actual, expected)
