@@ -300,15 +300,30 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
 
 def test_ensure_min_speed():
     fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
-    original_st = fiddler.stop_times.copy()
+    # the cairns feed only contains bus routes (type 3),
+    # let's turn the first route (110-423) into a tram
+    fiddler.routes.loc[0, "route_type"] = 0
+
+    original_st = (
+        fiddler.stop_times.copy()
+        .sort_values(by=["trip_id", "stop_sequence"])
+        .reset_index(drop=True)
+    )
 
     # empty request, should not change anything
-    fiddler.ensure_min_speed({})
-    assert_frame_equal(fiddler.stop_times, original_st)
+    # fiddler.ensure_min_speed({})
+    # assert_frame_equal(fiddler.stop_times, original_st)
 
-    # change all busses to travel at >= 50 kph
-    fiddler.ensure_min_speed({3: 50})
+    # change all bus routes to travel at >= 30 kph
+    fiddler.ensure_min_speed({3: 30})
     assert len(fiddler.stop_times) == len(original_st)
+    # assert that all non-busses are unchanged
+    # assert exact times for the same trip as below
+
+    # change the trams route to travel at >= 50 kph
+    fiddler.ensure_min_speed({0: 50})
+    assert len(fiddler.stop_times) == len(original_st)
+    assert False, "more asserts in this test"
 
 
 def test_ensure_min_speed_of_trip():

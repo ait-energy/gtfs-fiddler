@@ -1,4 +1,6 @@
 import math
+
+import numpy as np
 import pytest
 
 from gtfs_fiddler.gtfs_time import GtfsTime
@@ -64,6 +66,11 @@ def test_beyond_24h():
 
 def test_repr():
     assert repr(GtfsTime("5:01")) == "05:01:00"
+
+
+def test_to_gtfs_kit_raw():
+    assert math.isnan(GtfsTime(np.nan).to_gtfs_kit_raw())
+    assert GtfsTime("05:00").to_gtfs_kit_raw() == "05:00:00"
 
 
 def test_less_than():

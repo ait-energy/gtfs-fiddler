@@ -35,8 +35,19 @@ class GtfsTime:
             except:
                 raise ValueError(f"expected HH:MM:SS format but got {time}")
 
-    def isnan(self):
+    def isnan(self) -> bool:
         return math.isnan(self.seconds_of_day)
+
+    def to_gtfs_kit_raw(self) -> float | str:
+        """
+        gtfs_kit usually stores times as string but empty
+        values are stored as nan (pandas default behavior).
+        I don't like this behavior, but use this method
+        to ensure max compatibility
+        """
+        if math.isnan(self.seconds_of_day):
+            return self.seconds_of_day
+        return str(self)
 
     def __repr__(self):
         if math.isnan(self.seconds_of_day):

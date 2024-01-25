@@ -129,3 +129,7 @@ st = st.loc[["999.T0.23-70A-j22-1.3.R"]]
 # %%
 st = compute_stop_time_stats(f.feed)
 st = st[st.trip_id == "CNS2014-CNS_MUL-Sunday-00-4165971"]
+
+# %%
+
+f.ensure_min_speed({3: 50})

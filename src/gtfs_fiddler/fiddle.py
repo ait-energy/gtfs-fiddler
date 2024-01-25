@@ -256,8 +256,10 @@ class GtfsFiddler:
         dup_times = dup_times.groupby("trip_id").apply(
             lambda df: GtfsFiddler._adjust_stop_times(df, desired_start=target_time)
         )
-        dup_times.arrival_time = dup_times.arrival_time.apply(str)
-        dup_times.departure_time = dup_times.departure_time.apply(str)
+        dup_times.arrival_time = dup_times.arrival_time.apply(GtfsTime.to_gtfs_kit_raw)
+        dup_times.departure_time = dup_times.departure_time.apply(
+            GtfsTime.to_gtfs_kit_raw
+        )
         self._feed.stop_times = pd.concat([self.stop_times, dup_times]).reset_index(
             drop=True
         )
@@ -286,7 +288,9 @@ class GtfsFiddler:
         Override the original travel times of each trip with travel times
         calculated from the given speeds and the departure time
         of the first stop. Only trips of routes with a type present
-        in `route_type2speed` are modified.
+        in `route_type2speed` are modified. Also if the original
+        travel time was shorter than the one calculated with the given speed
+        it is left intact.
 
         Args:
           speeds:
@@ -299,27 +303,33 @@ class GtfsFiddler:
         )[["trip_id", "route_id", "route_type"]]
         st = st.join(trip2route.set_index("trip_id"), on="trip_id")
 
-        def teh_magic(df):
-            if int(df.name) not in route_type2speed:
+        def adjust_trips_for_route_type(df):
+            route_type = int(df.name)
+            if route_type not in route_type2speed:
                 return df
-            speed = route_type2speed[int(df.name)]
-            return df.groupby("trip_id").apply(
-                lambda v: GtfsFiddler._ensure_min_speed_of_trip(v, speed)
+            speed = route_type2speed[route_type]
+            new_df = df.groupby("trip_id").apply(
+                lambda v: GtfsFiddler._ensure_min_speed_of_trip(v, speed),
             )
+            return new_df.reset_index(drop=True)
 
-        # TODO GtfsTime to str, clean of unnecessary cols
-        new_st = st.groupby("route_type").apply(teh_magic)
-        # only keep columns according to original feed
-        self.feed.stop_times = new_st.reset_index()[self.stop_times.columns]
+        # convert GtfsTime back to str, clean unnecessary cols, sort
+        new_st = st.groupby("route_type").apply(adjust_trips_for_route_type)
+        new_st = new_st[self.stop_times.columns]
+        new_st.arrival_time = new_st.arrival_time.apply(GtfsTime.to_gtfs_kit_raw)
+        new_st.departure_time = new_st.departure_time.apply(GtfsTime.to_gtfs_kit_raw)
+        new_st = new_st.sort_values(["trip_id", "stop_sequence"]).reset_index(drop=True)
+        self.feed.stop_times = new_st.reset_index(drop=True)
 
     @staticmethod
-    def _ensure_min_speed_of_trip(df, speed):
+    def _ensure_min_speed_of_trip(df: DataFrame, speed: float) -> DataFrame:
         """
         Adjust stop times (of a single trip).
-        Reduces the time between two stops if the provided speed
-        is faster than the original travel time.
+        Reduces the time between two stops if traveling
+        at the provided speed is faster. In case the original
+        travel time was faster it is not changed.
 
-        Requires column "dist_to_next_stop"
+        Requires output of `compute_stop_time_stats` (and not raw trips)
 
         Returns a copy of the input df with
         changed "arrival_time" and "departure_time"
