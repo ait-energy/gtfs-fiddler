@@ -310,20 +310,51 @@ def test_ensure_min_speed():
         .reset_index(drop=True)
     )
 
-    # empty request, should not change anything
-    # fiddler.ensure_min_speed({})
-    # assert_frame_equal(fiddler.stop_times, original_st)
+    # first trip of route "110-423", 0
+    tram_trip = "CNS2014-CNS_MUL-Sunday-00-4165971"
+    # first trip of route "111-423", 0
+    bus_trip = "CNS2014-CNS_MUL-Sunday-00-4166214"
+    # fiddler.stop_times.set_index("trip_id").loc[bus_trip].to_csv("/tmp/x.csv")
 
-    # change all bus routes to travel at >= 30 kph
+    ### empty request, should not change anything
+    fiddler.ensure_min_speed({})
+
+    assert_frame_equal(fiddler.stop_times, original_st)
+    # bus still at original state
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[bus_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__bus_original.csv"),
+    )
+
+    ### change all bus routes to travel at >= 30 kph
     fiddler.ensure_min_speed({3: 30})
-    assert len(fiddler.stop_times) == len(original_st)
-    # assert that all non-busses are unchanged
-    # assert exact times for the same trip as below
 
-    # change the trams route to travel at >= 50 kph
-    fiddler.ensure_min_speed({0: 50})
     assert len(fiddler.stop_times) == len(original_st)
-    assert False, "more asserts in this test"
+    # bus must be adjusted
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[bus_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__bus_30.csv"),
+    )
+    # tram must still be unchanged
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[tram_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__tram_original.csv"),
+    )
+
+    ### change the trams route to travel at >= 50 kph
+    fiddler.ensure_min_speed({0: 50})
+
+    assert len(fiddler.stop_times) == len(original_st)
+    # bus must (still) be adjusted
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[bus_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__bus_30.csv"),
+    )
+    # tram must be adjusted as well now
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[tram_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__tram_50.csv"),
+    )
 
 
 def test_ensure_min_speed_of_trip():
@@ -378,6 +409,7 @@ def test_ensure_min_speed_of_trip():
 
 
 def assert_frame_equal_to_csv(df: DataFrame, path: Path):
-    actual = df.astype(str).reset_index(drop=True)
+    # nans are represented as empty strings
+    actual = df.fillna("").astype(str).reset_index(drop=True)
     expected = pd.read_csv(path, dtype=str, keep_default_na=False)
     assert_frame_equal(actual, expected)
