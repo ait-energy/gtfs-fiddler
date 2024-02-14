@@ -109,16 +109,17 @@ class GtfsFiddler:
     def trips_enriched(self) -> DataFrame:
         """
         Returns trips with added start and end time, time to next trip,
-        and distances
+        and distances.
+        Sorted by route_id, direction_id, start_time.
         """
         # TODO actually we don't need the distance for most calls
         # of this method. avoiding these calculations could improve runtimes.
 
         trip_stats = self._feed.compute_trip_stats()
-        # add missing columns again
-        trip2service = self._feed.trips[
-            ["trip_id", "service_id", "trip_headsign", "block_id"]
-        ]
+        # add all columns previously present again
+        missing_cols = set(self._feed.trips.columns) - set(trip_stats.columns)
+        missing_cols.add("trip_id")
+        trip2service = self._feed.trips[sorted(missing_cols)]
         df = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
         df.start_time = df.start_time.apply(GtfsTime)
         df.end_time = df.end_time.apply(GtfsTime)
@@ -128,11 +129,14 @@ class GtfsFiddler:
             next_start = df.start_time[1:].reset_index(drop=True)
             return next_start - start
 
+        df = df.sort_values(by=["route_id", "direction_id", "start_time"])
         df["time_to_next_trip"] = (
-            df.groupby(["route_id", "direction_id"]).apply(time_to_next_trip).values
+            df.groupby(["route_id", "direction_id"], dropna=False)
+            .apply(time_to_next_trip)
+            .values
         )
 
-        return df.sort_values(by=["route_id", "direction_id", "start_time"])
+        return df
 
     @property
     def feed(self) -> Feed:
@@ -147,8 +151,7 @@ class GtfsFiddler:
         return self._feed.trips
 
     def trips_for_route(self, route_id, direction_id) -> DataFrame:
-        df = self._feed.trips
-        return df[(df.route_id == route_id) & (df.direction_id == direction_id)]
+        return trips_for_route(self._feed.trips, route_id, direction_id)
 
     @property
     def stop_times(self) -> DataFrame:
@@ -239,10 +242,10 @@ class GtfsFiddler:
 
         # find the first/last trip of routes that need adjustment
         if earliest:
-            first_trip = t.groupby(["route_id", "direction_id"]).first()
+            first_trip = t.groupby(["route_id", "direction_id"], dropna=False).first()
             trips_to_adjust = first_trip[first_trip.start_time > target_time].trip_id
         else:
-            last_trip = t.groupby(["route_id", "direction_id"]).last()
+            last_trip = t.groupby(["route_id", "direction_id"], dropna=False).last()
             trips_to_adjust = last_trip[last_trip.start_time < target_time].trip_id
 
         # copy and adjust these trips, add them to the feed's trips
