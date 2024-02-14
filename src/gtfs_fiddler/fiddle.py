@@ -288,7 +288,11 @@ class GtfsFiddler:
         stop_times.departure_time = stop_times.departure_time + adjustment
         return stop_times
 
-    def ensure_min_speed(self, route_type2speed: dict[int, float]):
+    def ensure_min_speed(
+        self,
+        route_type2speed: dict[int, float] | None = None,
+        route_id2speed: dict[str, float] | None = None,
+    ):
         """
         Override the original travel times of each trip with travel times
         calculated from the given speeds and the departure time
@@ -299,7 +303,7 @@ class GtfsFiddler:
 
         Args:
           speeds:
-            Mapping of route type to speed.
+            Mapping of route type or id to speed.
             Speed in either mph or kph depending on the feed's distance unit.
         """
         st = compute_stop_time_stats(self.feed)
@@ -318,8 +322,24 @@ class GtfsFiddler:
             )
             return new_df.reset_index(drop=True)
 
+        # TODO check performance
+        def adjust_trips_for_route_id(df):
+            route_id = str(df.name)
+            if route_id not in route_id2speed:
+                return df
+            speed = route_id2speed[route_id]
+            new_df = df.groupby("trip_id").apply(
+                lambda v: GtfsFiddler._ensure_min_speed_of_trip(v, speed),
+            )
+            return new_df.reset_index(drop=True)
+
+        new_st = st
+        if route_type2speed is not None:
+            new_st = new_st.groupby("route_type").apply(adjust_trips_for_route_type)
+        if route_id2speed is not None:
+            new_st = new_st.groupby("route_id").apply(adjust_trips_for_route_id)
+
         # convert GtfsTime back to str, clean unnecessary cols, sort
-        new_st = st.groupby("route_type").apply(adjust_trips_for_route_type)
         new_st = new_st[self.stop_times.columns]
         new_st.arrival_time = new_st.arrival_time.apply(GtfsTime.to_gtfs_kit_raw)
         new_st.departure_time = new_st.departure_time.apply(GtfsTime.to_gtfs_kit_raw)

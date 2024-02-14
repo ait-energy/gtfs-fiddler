@@ -30,8 +30,12 @@ def main(args):
     fiddler.ensure_latest_departure(GtfsTime("23:00"))
     logger.info(f"ensure max trip interval")
     fiddler.ensure_max_trip_interval(5)
-    logger.info(f"increasing speed of busses and trams")
-    fiddler.ensure_min_speed({0: 30, 3: 30})
+    # logger.info(f"increasing speed of busses and trams")
+    # fiddler.ensure_min_speed(route_type2speed={0: 30, 3: 30})
+    logger.info(f"increasing speed of selected routes")
+    route_ids = ["42", "s7v4", "rc3d", "nq8b", "w1k2", "tcn7"]
+    fiddler.ensure_min_speed(route_id2speed={id: 30 for id in route_ids})
+    logger.info(f"increasing speed of selected routes")
     logger.info(f"writing result to {out_file}")
     fiddler.feed.write(out_file)
 

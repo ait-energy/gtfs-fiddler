@@ -298,7 +298,7 @@ def __departure(fiddler: GtfsFiddler, route_id, direction_id, index) -> GtfsTime
     return df.iloc[index].start_time
 
 
-def test_ensure_min_speed():
+def test_ensure_min_speed__per_route_type():
     fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
     # the cairns feed only contains bus routes (type 3),
     # let's turn the first route (110-423) into a tram
@@ -317,7 +317,7 @@ def test_ensure_min_speed():
     # fiddler.stop_times.set_index("trip_id").loc[bus_trip].to_csv("/tmp/x.csv")
 
     ### empty request, should not change anything
-    fiddler.ensure_min_speed({})
+    fiddler.ensure_min_speed(route_type2speed={})
 
     assert_frame_equal(fiddler.stop_times, original_st)
     # bus still at original state
@@ -327,7 +327,7 @@ def test_ensure_min_speed():
     )
 
     ### change all bus routes to travel at >= 30 kph
-    fiddler.ensure_min_speed({3: 30})
+    fiddler.ensure_min_speed(route_type2speed={3: 30})
 
     assert len(fiddler.stop_times) == len(original_st)
     # bus must be adjusted
@@ -342,7 +342,7 @@ def test_ensure_min_speed():
     )
 
     ### change the trams route to travel at >= 50 kph
-    fiddler.ensure_min_speed({0: 50})
+    fiddler.ensure_min_speed(route_type2speed={0: 50})
 
     assert len(fiddler.stop_times) == len(original_st)
     # bus must (still) be adjusted
@@ -354,6 +354,24 @@ def test_ensure_min_speed():
     assert_frame_equal_to_csv(
         fiddler.stop_times.set_index("trip_id").loc[tram_trip].reset_index(),
         Path("./tests/data/test_ensure_min_speed__tram_50.csv"),
+    )
+
+
+def test_ensure_min_speed__per_route():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    # first trip of route "111-423", 0
+    bus_trip = "CNS2014-CNS_MUL-Sunday-00-4166214"
+    # bus still at original state
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[bus_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__bus_original.csv"),
+    )
+
+    ### change one bus route to travel at >= 30 kph
+    fiddler.ensure_min_speed(route_id2speed={"111-423": 30})
+    assert_frame_equal_to_csv(
+        fiddler.stop_times.set_index("trip_id").loc[bus_trip].reset_index(),
+        Path("./tests/data/test_ensure_min_speed__bus_30.csv"),
     )
 
 
