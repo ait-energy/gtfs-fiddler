@@ -1,16 +1,19 @@
+import logging
 import math
 from datetime import date
 from pathlib import Path
 
 import gtfs_kit as gk
+import gtfs_kit.helpers as hp
 import pandas as pd
 from gtfs_kit.feed import Feed
-import gtfs_kit.helpers as hp
 from gtfs_kit.miscellany import restrict_to_dates
 from gtfs_kit.stop_times import append_dist_to_stop_times
 from pandas import DataFrame, Series
 
 from gtfs_fiddler.gtfs_time import GtfsTime
+
+logger = logging.getLogger(__name__)
 
 
 def trips_for_route(trips: DataFrame, route_id, direction_id):
@@ -96,11 +99,11 @@ class GtfsFiddler:
     - allow filtering of route types (or route ids) to be densified
     """
 
-    def __init__(self, p: Path, dist_units: str, date: date | None = None):
+    def __init__(self, p: Path, dist_units: str, restrict_to_date: date | None = None):
         self._original_feed = gk.read_feed(p, dist_units=dist_units)
         self._original_feed.validate()
-        if date is not None:
-            datestr = date.isoformat().replace("-", "")
+        if restrict_to_date is not None:
+            datestr = restrict_to_date.isoformat().replace("-", "")
             self._feed = restrict_to_dates(self._original_feed, [datestr])
         else:
             self._feed = self._original_feed
@@ -166,21 +169,23 @@ class GtfsFiddler:
 
     def ensure_earliest_departure(self, target_time: GtfsTime):
         """
-        In case the earliest trip departs later than the given time,
+        In case the earliest trip (per route_id + direction_id)
+        departs later than the given time,
         this trip is copied and set to start at that time.
         """
         self._ensure_earliest_or_latest_departure(target_time, True)
 
     def ensure_latest_departure(self, target_time: GtfsTime):
         """
-        In case the latest trip departs earlier than the given time,
+        In case the latest trip (per route_id + direction_id)
+        departs earlier than the given time,
         this trip is copied and set to start at that time.
         """
         self._ensure_earliest_or_latest_departure(target_time, False)
 
     def ensure_max_trip_interval(self, minutes: int):
         """
-        For each interval (between two trips) larger than the given maximum
+        For each interval (between two trips per route_id + direction_id) larger than the given maximum
         new trip(s) are inserted by copying the first trip (as often as required).
 
         Note, that this only works reliably if the feed was reduced to a single day.
@@ -233,6 +238,8 @@ class GtfsFiddler:
         all_st = pd.concat([self.stop_times, new_st]).reset_index(drop=True)
         self._feed.stop_times = all_st.sort_values(["trip_id", "stop_sequence"])
 
+        logger.info(f"added {len(t)} trips")
+
     def _ensure_earliest_or_latest_departure(
         self, target_time: GtfsTime, earliest: bool
     ):
@@ -271,6 +278,8 @@ class GtfsFiddler:
         self._feed.stop_times = pd.concat([self.stop_times, dup_times]).reset_index(
             drop=True
         )
+
+        logger.info(f"added {len(dup_trips)} trips")
 
     @staticmethod
     def _adjust_stop_times(

@@ -17,25 +17,41 @@ logger = logging.getLogger(__name__)
 
 
 def main(args):
-    print(args)
+    # early conversion of arguments to fail fast (if wrong)
     in_file = Path(args.in_gtfs)
     out_file = Path(args.out_gtfs)
     the_date = date.fromisoformat(args.date)
+    earliest_departure = (
+        GtfsTime(args.earliest_departure)
+        if args.earliest_departure is not None
+        else None
+    )
+    latest_departure = (
+        GtfsTime(args.latest_departure) if args.latest_departure is not None else None
+    )
 
     logger.info(f"loading {in_file} (reducing it to {the_date})")
     fiddler = GtfsFiddler(in_file, args.dist_unit, the_date)
-    logger.info(f"ensure earliest departure")
-    fiddler.ensure_earliest_departure(GtfsTime("05:00"))
-    logger.info(f"ensure latest departure")
-    fiddler.ensure_latest_departure(GtfsTime("23:00"))
-    logger.info(f"ensure max trip interval")
-    fiddler.ensure_max_trip_interval(5)
+
+    if earliest_departure is not None:
+        logger.info(f"ensure earliest departure at {earliest_departure}")
+        fiddler.ensure_earliest_departure(earliest_departure)
+
+    if latest_departure is not None:
+        logger.info(f"ensure latest departure at {latest_departure}")
+        fiddler.ensure_latest_departure(latest_departure)
+
+    if args.interval_minutes is not None:
+        logger.info(f"ensure max trip interval: {args.interval_minutes} minutes")
+        fiddler.ensure_max_trip_interval(args.interval_minutes)
+
     # logger.info(f"increasing speed of busses and trams")
     # fiddler.ensure_min_speed(route_type2speed={0: 30, 3: 30})
-    logger.info(f"increasing speed of selected routes")
-    route_ids = ["42", "s7v4", "rc3d", "nq8b", "w1k2", "tcn7"]
-    fiddler.ensure_min_speed(route_id2speed={id: 30 for id in route_ids})
-    logger.info(f"increasing speed of selected routes")
+
+    # logger.info(f"increasing speed of selected routes (SHOW Salzburg)")
+    # route_ids = ["42", "s7v4", "rc3d", "nq8b", "w1k2", "tcn7"]
+    # fiddler.ensure_min_speed(route_id2speed={id: 50 for id in route_ids})
+
     logger.info(f"writing result to {out_file}")
     fiddler.feed.write(out_file)
 
@@ -52,6 +68,24 @@ if __name__ == "__main__":
         type=str,
         default="km",
         help="distance unit (used in the input GTFS file)",
+    )
+    parser.add_argument(
+        "--interval-minutes",
+        type=int,
+        default=None,
+        help="ensure maximum duration of intervals (between two trips)",
+    )
+    parser.add_argument(
+        "--earliest-departure",
+        type=str,
+        default=None,
+        help="ensure earliest departure per route and direction (hh:mm)",
+    )
+    parser.add_argument(
+        "--latest-departure",
+        type=str,
+        default=None,
+        help="ensure latest departure per route and direction (hh:mm)",
     )
     args = parser.parse_args()
 
