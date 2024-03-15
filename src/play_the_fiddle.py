@@ -45,8 +45,8 @@ def main(args):
         logger.info(f"ensure max trip interval: {args.interval_minutes} minutes")
         fiddler.ensure_max_trip_interval(args.interval_minutes)
 
-    # logger.info(f"increasing speed of busses and trams")
-    # fiddler.ensure_min_speed(route_type2speed={0: 30, 3: 30})
+    # logger.info(f"increasing speed of buses and trams")
+    # fiddler.ensure_min_speed(route_type2speed={0: 25, 3: 25})
 
     # logger.info(f"increasing speed of selected routes (SHOW Salzburg)")
     # route_ids = ["42", "s7v4", "rc3d", "nq8b", "w1k2", "tcn7"]

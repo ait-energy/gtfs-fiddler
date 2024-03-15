@@ -306,17 +306,13 @@ class GtfsFiddler:
         route_id2speed: dict[str, float] | None = None,
     ):
         """
-        Override the original travel times of each trip with travel times
+        Override the original travel times of selected trips with travel times
         calculated from the given speeds and the departure time
-        of the first stop. Only trips of routes with a type present
-        in `route_type2speed` are modified. Also if the original
-        travel time was shorter than the one calculated with the given speed
-        it is left intact.
+        of the first stop. If the original travel time was shorter
+        than the one calculated with the given speed it is left intact.
 
-        Args:
-          speeds:
-            Mapping of route type or id to speed.
-            Speed in either mph or kph depending on the feed's distance unit.
+        Both route types and ids can be used together to select which routes are affected.
+        Speed must be given either mph or kph depending on the feed's distance unit.
         """
         st = compute_stop_time_stats(self.feed)
         trip2route = self.trips.join(
