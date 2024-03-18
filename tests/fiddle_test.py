@@ -1,17 +1,19 @@
-from pathlib import Path
-from pandas import DataFrame, Series
-from pandas.testing import assert_frame_equal, assert_series_equal
-import pytest
 import math
 from datetime import date
+from pathlib import Path
+
+import pandas as pd
+from pandas import DataFrame, Series
+from pandas.testing import assert_frame_equal, assert_series_equal
+
 from gtfs_fiddler.fiddle import (
+    FiddleFilter,
     GtfsFiddler,
     compute_stop_time_stats,
     make_unique,
     trips_for_route,
 )
 from gtfs_fiddler.gtfs_time import GtfsTime
-import pandas as pd
 
 CAIRNS_GTFS = Path("./data/cairns_gtfs.zip")
 SUNDAY = date(2014, 6, 1)
@@ -166,6 +168,36 @@ def test_trips_enriched__time_to_next_trip():
     assert times.iloc[0] == GtfsTime("1:00"), "one hour for first trip"
     assert list(times[1:-1]) == expected, "90 minutes for all other trips"
     assert math.isnan(times.iloc[10]), "except the last one of course"
+
+
+def test_trips_enriched_filter():
+    fiddler = GtfsFiddler(CAIRNS_GTFS, DIST_UNIT)
+    trips = fiddler.trips_enriched(FiddleFilter(route_types=[0]))
+    assert len(trips) == 0
+
+    trips = fiddler.trips_enriched(FiddleFilter(route_types=[0, 3]))
+    assert len(trips) == 1339
+
+    trips = fiddler.trips_enriched(FiddleFilter(route_ids=["110-423"]))
+    assert len(trips) == 125
+
+    trips = fiddler.trips_enriched(FiddleFilter(route_ids=["110-423", "150E-423"]))
+    assert len(trips) == 171
+
+    trips = fiddler.trips_enriched(
+        FiddleFilter(route_types=[0, 3], route_ids=["110-423", "150E-423"])
+    )
+    assert len(trips) == 171
+
+    trips = fiddler.trips_enriched(
+        FiddleFilter(route_types=[0], route_ids=["110-423", "150E-423"])
+    )
+    assert len(trips) == 0
+
+    trips = fiddler.trips_enriched(
+        FiddleFilter(route_types=[3], route_short_names=["110", "150E"])
+    )
+    assert len(trips) == 171
 
 
 def test_ensure_earliest_departure():

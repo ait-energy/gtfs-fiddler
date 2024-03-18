@@ -7,7 +7,7 @@ import sys
 from datetime import date
 from pathlib import Path
 import argparse
-from gtfs_fiddler.fiddle import GtfsFiddler
+from gtfs_fiddler.fiddle import FiddleFilter, GtfsFiddler
 from gtfs_fiddler.gtfs_time import GtfsTime
 
 logFormat = "%(asctime)s %(name)s %(levelname)s | %(message)s"
@@ -21,6 +21,26 @@ def main(args):
     in_file = Path(args.in_gtfs)
     out_file = Path(args.out_gtfs)
     the_date = date.fromisoformat(args.date)
+    route_types = (
+        None
+        if args.filter_route_types is None
+        else [int(v) for v in args.filter_route_types.split(",")]
+    )
+    route_ids = (
+        None
+        if args.filter_route_ids is None
+        else [v.strip() for v in args.filter_route_ids.split(",")]
+    )
+    route_short_names = (
+        None
+        if args.filter_route_short_names is None
+        else [v.strip() for v in args.filter_route_short_names.split(",")]
+    )
+    filter = FiddleFilter(
+        route_types=route_types,
+        route_ids=route_ids,
+        route_short_names=route_short_names,
+    )
     earliest_departure = (
         GtfsTime(args.earliest_departure)
         if args.earliest_departure is not None
@@ -35,15 +55,15 @@ def main(args):
 
     if earliest_departure is not None:
         logger.info(f"ensure earliest departure at {earliest_departure}")
-        fiddler.ensure_earliest_departure(earliest_departure)
+        fiddler.ensure_earliest_departure(earliest_departure, filter)
 
     if latest_departure is not None:
         logger.info(f"ensure latest departure at {latest_departure}")
-        fiddler.ensure_latest_departure(latest_departure)
+        fiddler.ensure_latest_departure(latest_departure, filter)
 
     if args.interval_minutes is not None:
         logger.info(f"ensure max trip interval: {args.interval_minutes} minutes")
-        fiddler.ensure_max_trip_interval(args.interval_minutes)
+        fiddler.ensure_max_trip_interval(args.interval_minutes, filter)
 
     # logger.info(f"increasing speed of buses and trams")
     # fiddler.ensure_min_speed(route_type2speed={0: 25, 3: 25})
@@ -68,6 +88,24 @@ if __name__ == "__main__":
         type=str,
         default="km",
         help="distance unit (used in the input GTFS file)",
+    )
+    parser.add_argument(
+        "--filter-route-types",
+        type=str,
+        default=None,
+        help="only affect certain route types (comma-separated list)",
+    )
+    parser.add_argument(
+        "--filter-route-ids",
+        type=str,
+        default=None,
+        help="only affect certain routes (comma-separated list)",
+    )
+    parser.add_argument(
+        "--filter-route-short-names",
+        type=str,
+        default=None,
+        help="only affect certain routes (comma-separated list)",
     )
     parser.add_argument(
         "--interval-minutes",

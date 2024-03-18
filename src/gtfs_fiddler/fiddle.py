@@ -1,5 +1,7 @@
 import logging
 import math
+from collections.abc import Collection
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -83,6 +85,21 @@ def compute_stop_time_stats(feed: Feed):
     return st
 
 
+@dataclass(frozen=True)
+class FiddleFilter:
+    """
+    Specify which routes should be affected.
+    If both types and ids are given they are combined with AND (not OR).
+    """
+
+    route_types: Collection[int] | None = None
+    route_ids: Collection[str] | None = None
+    route_short_names: Collection[str] | None = None
+
+
+NO_FILTER = FiddleFilter()
+
+
 class GtfsFiddler:
     """
     Built on top of gtfs_kit.Feed to:
@@ -93,10 +110,10 @@ class GtfsFiddler:
        - Trips to shorten intervals (for a specified maximum interval duration) with `GtfsFiddler.ensure_max_trip_interval`
     2. Increase speed of trips (for a specified average speed between two stops) with `GtfsFiddler.ensure_min_speed`
 
-    Also it provides typed access to the more of the feed's members (for autocompletion in IDE :)
+    All `ensure_*` methods take a `FiddleFilter` that can be omitted to affect all routes,
+    or specified to only affect specific route types or ids.
 
-    Potential future features:
-    - allow filtering of route types (or route ids) to be densified
+    Also it provides typed access to the more of the feed's members (for autocompletion in IDE :)
     """
 
     def __init__(self, p: Path, dist_units: str, restrict_to_date: date | None = None):
@@ -109,7 +126,7 @@ class GtfsFiddler:
             self._feed = self._original_feed
         # self._sorted_trips = GtfsFiddler._update_sorted_trips(self._feed)
 
-    def trips_enriched(self) -> DataFrame:
+    def trips_enriched(self, filter: FiddleFilter = NO_FILTER) -> DataFrame:
         """
         Returns trips with added start and end time, time to next trip,
         and distances.
@@ -119,6 +136,18 @@ class GtfsFiddler:
         # of this method. avoiding these calculations could improve runtimes.
 
         trip_stats = self._feed.compute_trip_stats()
+        old_len = len(trip_stats)
+        if filter.route_types is not None:
+            trip_stats = trip_stats.query("route_type in @filter.route_types")
+        if filter.route_ids is not None:
+            trip_stats = trip_stats.query("route_id in @filter.route_ids")
+        if filter.route_short_names is not None:
+            trip_stats = trip_stats.query(
+                "route_short_name in @filter.route_short_names"
+            )
+
+        logger.info(f"after filtering {len(trip_stats)}/{old_len} trips remain")
+
         # add all columns previously present again
         missing_cols = set(self._feed.trips.columns) - set(trip_stats.columns)
         missing_cols.add("trip_id")
@@ -126,6 +155,9 @@ class GtfsFiddler:
         df = trip_stats.join(trip2service.set_index("trip_id"), on="trip_id")
         df.start_time = df.start_time.apply(GtfsTime)
         df.end_time = df.end_time.apply(GtfsTime)
+
+        if len(df) == 0:
+            return df
 
         def time_to_next_trip(df):
             start = df.start_time.reset_index(drop=True)
@@ -167,23 +199,27 @@ class GtfsFiddler:
     def agency(self) -> DataFrame:
         return self._feed.agency
 
-    def ensure_earliest_departure(self, target_time: GtfsTime):
+    def ensure_earliest_departure(
+        self, target_time: GtfsTime, filter: FiddleFilter = NO_FILTER
+    ):
         """
         In case the earliest trip (per route_id + direction_id)
         departs later than the given time,
         this trip is copied and set to start at that time.
         """
-        self._ensure_earliest_or_latest_departure(target_time, True)
+        self._ensure_earliest_or_latest_departure(target_time, filter, True)
 
-    def ensure_latest_departure(self, target_time: GtfsTime):
+    def ensure_latest_departure(
+        self, target_time: GtfsTime, filter: FiddleFilter = NO_FILTER
+    ):
         """
         In case the latest trip (per route_id + direction_id)
         departs earlier than the given time,
         this trip is copied and set to start at that time.
         """
-        self._ensure_earliest_or_latest_departure(target_time, False)
+        self._ensure_earliest_or_latest_departure(target_time, filter, False)
 
-    def ensure_max_trip_interval(self, minutes: int):
+    def ensure_max_trip_interval(self, minutes: int, filter: FiddleFilter = NO_FILTER):
         """
         For each interval (between two trips per route_id + direction_id) larger than the given maximum
         new trip(s) are inserted by copying the first trip (as often as required).
@@ -193,7 +229,7 @@ class GtfsFiddler:
         """
         suffix = "#densify"
         # get trips enriched with arrival/departure times
-        t = self.trips_enriched()
+        t = self.trips_enriched(filter)
         t = t[t.time_to_next_trip > GtfsTime(minutes * 60)]
 
         # multiply trips as required, calculate their time shift
@@ -220,7 +256,7 @@ class GtfsFiddler:
         st.departure_time = st.departure_time.apply(GtfsTime)
         st = st.sort_values(["trip_id", "stop_sequence"])
 
-        def teh_lambda(s):
+        def _lambda(s):
             df = st.loc[s.trip_id_original]
             df = GtfsFiddler._adjust_stop_times(
                 df, adjustment_seconds=s.offset_seconds
@@ -230,7 +266,7 @@ class GtfsFiddler:
 
         collected_stop_times = t[
             ["trip_id", "trip_id_original", "offset_seconds"]
-        ].apply(teh_lambda, axis=1)
+        ].apply(_lambda, axis=1)
         new_st = pd.concat(list(collected_stop_times))
         new_st.arrival_time = new_st.arrival_time.apply(str)
         new_st.departure_time = new_st.departure_time.apply(str)
@@ -241,11 +277,11 @@ class GtfsFiddler:
         logger.info(f"added {len(t)} trips")
 
     def _ensure_earliest_or_latest_departure(
-        self, target_time: GtfsTime, earliest: bool
+        self, target_time: GtfsTime, filter: FiddleFilter, earliest: bool
     ):
         suffix = "#early" if earliest else "#late"
         # get trips enriched with arrival/departure times
-        t = self.trips_enriched()
+        t = self.trips_enriched(filter)
 
         # find the first/last trip of routes that need adjustment
         if earliest:
